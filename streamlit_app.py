@@ -8,7 +8,7 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
 
 # =====================================
-# CONFIG
+# PAGE CONFIG
 # =====================================
 st.set_page_config(
     page_title="ConcreteVision AI",
@@ -17,20 +17,61 @@ st.set_page_config(
 )
 
 # =====================================
-# DARK MODE TOGGLE (simple UI control)
+# SESSION STATE (history)
+# =====================================
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+# =====================================
+# THEME CONTROL (FIXED)
 # =====================================
 theme = st.sidebar.selectbox("🎨 Theme", ["Light", "Dark"])
 
 if theme == "Dark":
     st.markdown("""
     <style>
-        body {
-            background-color: #0e1117;
-            color: white;
-        }
-        .stApp {
-            background-color: #0e1117;
-        }
+
+    .stApp {
+        background-color: #0e1117;
+        color: #ffffff;
+    }
+
+    section[data-testid="stSidebar"] {
+        background-color: #111827;
+    }
+
+    h1, h2, h3, h4, p, span, label {
+        color: #ffffff !important;
+    }
+
+    div[data-testid="stMetric"] {
+        background-color: #1f2937;
+        padding: 10px;
+        border-radius: 10px;
+    }
+
+    .stDataFrame {
+        background-color: #111827;
+    }
+
+    button {
+        border-radius: 8px;
+    }
+
+    * {
+        transition: all 0.2s ease-in-out;
+    }
+
+    </style>
+    """, unsafe_allow_html=True)
+
+else:
+    st.markdown("""
+    <style>
+    .stApp {
+        background-color: white;
+        color: black;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -59,24 +100,27 @@ if uploaded_model is not None:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as tmp:
             tmp.write(uploaded_model.read())
             model = load_model(tmp.name, compile=False)
-        st.sidebar.success("Model Loaded ✅")
+        st.sidebar.success("Model loaded ✅")
     except Exception as e:
         st.sidebar.error(f"Error: {e}")
-
-# =====================================
-# SESSION STORAGE (history)
-# =====================================
-if "history" not in st.session_state:
-    st.session_state.history = []
 
 # =====================================
 # HOME PAGE
 # =====================================
 if menu == "🏠 Home":
-    st.title("🧠 ConcreteVision AI")
-    st.write("AI untuk klasifikasi retak beton berbasis CNN")
 
-    st.info("Upload model dan gambar di menu Predict untuk mulai analisis")
+    st.title("🧠 ConcreteVision AI")
+    st.markdown("""
+    Sistem AI untuk klasifikasi retak beton menggunakan CNN.
+
+    ### Fitur:
+    - Upload model AI
+    - Prediksi banyak gambar
+    - Dashboard analisis
+    - Dark / Light mode
+    """)
+
+    st.success("Masuk ke Predict untuk mulai analisis")
 
 # =====================================
 # PREDICT PAGE
@@ -86,7 +130,7 @@ if menu == "🔍 Predict":
     st.title("🔍 AI Prediction System")
 
     uploaded_images = st.file_uploader(
-        "Upload Gambar Beton",
+        "Upload gambar beton",
         type=["jpg", "jpeg", "png"],
         accept_multiple_files=True
     )
@@ -136,7 +180,6 @@ if menu == "🔍 Predict":
 
         df = pd.DataFrame(results)
 
-        # save session history
         st.session_state.history.append(df)
 
         st.markdown("---")
@@ -173,7 +216,7 @@ if menu == "📊 Analytics":
 
         st.bar_chart(df["Prediksi"].value_counts())
 
-        st.subheader("🔎 Filter Confidence")
+        st.subheader("Filter Confidence")
 
         min_conf = st.slider("Minimal Confidence (%)", 0, 100, 50)
 
@@ -189,19 +232,12 @@ if menu == "ℹ️ About":
     st.title("ℹ️ About Project")
 
     st.markdown("""
-    ### ConcreteVision AI
+    ConcreteVision AI adalah sistem AI untuk mendeteksi retakan beton.
 
-    Sistem AI untuk mendeteksi retakan pada permukaan beton.
-
-    ### Features:
-    - CNN Classification
-    - Multi-image prediction
-    - Dashboard analytics
-    - Dark mode UI
-    - Session history
-
-    ### Tech Stack:
-    Python | TensorFlow | Streamlit
+    Teknologi:
+    - TensorFlow
+    - CNN
+    - Streamlit
     """)
 
-    st.success("Project siap untuk deployment Streamlit Cloud 🚀")
+    st.success("Siap deploy ke Streamlit Cloud 🚀")
