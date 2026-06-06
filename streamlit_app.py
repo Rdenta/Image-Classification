@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -28,6 +29,10 @@ if "images" not in st.session_state:
 if "model" not in st.session_state:
     st.session_state.model = None
 
+# FIX #2 — Tambah key tracker untuk cegah double-append history
+if "last_predicted_key" not in st.session_state:
+    st.session_state.last_predicted_key = None
+
 # =====================================
 # SIDEBAR MENU
 # =====================================
@@ -48,9 +53,14 @@ uploaded_model = st.sidebar.file_uploader(
 
 if uploaded_model is not None:
     try:
+        # FIX #5 — Hapus tempfile setelah model dimuat
         with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as tmp:
             tmp.write(uploaded_model.read())
-            st.session_state.model = load_model(tmp.name, compile=False)
+            tmp_path = tmp.name
+
+        st.session_state.model = load_model(tmp_path, compile=False)
+        os.unlink(tmp_path)  # Bersihkan file sementara
+
         st.sidebar.success("Model loaded ✅")
     except Exception as e:
         st.sidebar.error(f"Error loading model: {e}")
@@ -58,7 +68,7 @@ if uploaded_model is not None:
 model = st.session_state.model
 
 # =====================================
-# MODEL STATUS INFO (NEW)
+# MODEL STATUS INFO
 # =====================================
 if model is None:
     st.sidebar.warning("⚠️ Model belum diupload")
@@ -80,7 +90,7 @@ if menu == "🏠 Home":
     - Upload model AI
     - Analisis gambar
     - Dashboard statistik
-    - Data tersimpan antar menu (FIXED)
+    - Data tersimpan antar menu
     """)
 
 # =====================================
@@ -96,13 +106,13 @@ if menu == "🔍 Predict":
         accept_multiple_files=True
     )
 
-    # simpan ke session
+    # Simpan ke session
     if uploaded_images:
         st.session_state.images = uploaded_images
 
     images = st.session_state.images
 
-    # RESET BUTTON (NEW)
+    # RESET BUTTON
     colA, colB = st.columns(2)
 
     with colA:
@@ -110,7 +120,9 @@ if menu == "🔍 Predict":
 
     if reset:
         st.session_state.images = []
-        st.experimental_rerun()
+        st.session_state.last_predicted_key = None
+        # FIX #1 — Ganti experimental_rerun() dengan st.rerun()
+        st.rerun()
 
     if model is not None and len(images) > 0:
 
@@ -128,6 +140,10 @@ if menu == "🔍 Predict":
             with st.spinner("🧠 AI processing..."):
                 img = image.resize((150, 150))
                 img_array = img_to_array(img)
+
+                # FIX #4 — Normalisasi pixel 0–255 menjadi 0–1
+                img_array = img_array / 255.0
+
                 img_array = np.expand_dims(img_array, axis=0)
 
                 prediction = model.predict(img_array, verbose=0)
@@ -157,8 +173,13 @@ if menu == "🔍 Predict":
 
         df = pd.DataFrame(results)
 
-        # hindari double history (IMPROVED)
-        st.session_state.history.append(df)
+        # FIX #2 — Cegah double-append history setiap kali halaman re-render
+        image_names = sorted([f.name for f in images])
+        current_key = str(image_names)
+
+        if current_key != st.session_state.last_predicted_key:
+            st.session_state.history.append(df)
+            st.session_state.last_predicted_key = current_key
 
         st.markdown("---")
 
@@ -183,7 +204,7 @@ if menu == "📊 Analytics":
         st.warning("Belum ada data prediksi")
     else:
 
-        df = pd.concat(st.session_state.history)
+        df = pd.concat(st.session_state.history, ignore_index=True)
 
         total = len(df)
         retak = len(df[df["Prediksi"] == "Retak"])
@@ -215,10 +236,11 @@ if menu == "ℹ️ About":
     st.markdown("""
     ConcreteVision AI - Sistem deteksi retak beton berbasis CNN
 
-    ✔ Persistent image upload (FIXED)
-    ✔ Session-based history
+    ✔ Persistent image upload
+    ✔ Session-based history (no duplicate entries)
     ✔ Streamlit deployment ready
     ✔ Reset feature added
+    ✔ Pixel normalization applied
     """)
 
     st.success("Ready 🚀")
