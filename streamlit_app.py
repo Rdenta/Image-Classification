@@ -140,10 +140,6 @@ if menu == "🔍 Predict":
             with st.spinner("🧠 AI processing..."):
                 img = image.resize((150, 150))
                 img_array = img_to_array(img)
-
-                # FIX #4 — Normalisasi pixel 0–255 menjadi 0–1
-                img_array = img_array / 255.0
-
                 img_array = np.expand_dims(img_array, axis=0)
 
                 prediction = model.predict(img_array, verbose=0)
@@ -240,7 +236,6 @@ if menu == "ℹ️ About":
     ✔ Session-based history (no duplicate entries)
     ✔ Streamlit deployment ready
     ✔ Reset feature added
-    ✔ Pixel normalization applied
     """)
 
     st.success("Ready 🚀")
