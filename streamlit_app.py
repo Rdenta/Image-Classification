@@ -8,85 +8,52 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
 
 # =====================================
-# KONFIGURASI HALAMAN
+# CONFIG
 # =====================================
 
 st.set_page_config(
-    page_title="ConcreteVision",
+    page_title="ConcreteVision AI",
     page_icon="🧠",
     layout="wide"
 )
 
 # =====================================
-# ZOOM CONTROL (ZOOM IN / OUT)
+# SIDEBAR NAVIGATION
 # =====================================
 
-zoom = st.sidebar.slider(
-    "🔍 Zoom Tampilan",
-    min_value=70,
-    max_value=150,
-    value=100,
-    step=5
+st.sidebar.title("🧠 ConcreteVision")
+menu = st.sidebar.radio(
+    "Navigasi",
+    ["🏠 Home", "🔍 Predict", "📊 Analytics", "ℹ️ About"]
 )
 
-st.markdown(
-    f"""
-    <style>
-        .main {{
-            transform: scale({zoom/100});
-            transform-origin: top left;
-        }}
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+st.sidebar.markdown("---")
 
 # =====================================
-# HEADER
+# HOME
 # =====================================
 
-st.title("🧠🏗️ ConcreteVision: Sistem Analisis Retak Beton Berbasis AI")
+if menu == "🏠 Home":
+    st.title("🏗️ ConcreteVision AI")
+    st.markdown("""
+    Sistem analisis retak beton berbasis Artificial Intelligence (CNN)
 
-st.caption(
-    "Platform berbasis Artificial Intelligence untuk klasifikasi dan analisis kondisi permukaan beton menggunakan Convolutional Neural Network (CNN)."
-)
+    ### ✨ Fitur:
+    - Klasifikasi Retak / Tidak Retak
+    - Upload model AI (.h5)
+    - Analisis gambar banyak sekaligus
+    - Dashboard statistik
+    - UI modern & interaktif
+    """)
 
-# =====================================
-# IDENTITAS MAHASISWA
-# =====================================
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.metric("Nama", "Muhammad Reval Denta")
-
-with col2:
-    st.metric("NIM", "032400048")
-
-with col3:
-    st.metric("Prodi", "Elektro Mekanika")
-
-st.markdown("---")
+    st.success("Silakan masuk ke menu Predict untuk mulai analisis")
 
 # =====================================
-# PETUNJUK
+# LOAD MODEL (GLOBAL)
 # =====================================
 
-st.markdown("""
-### Cara Penggunaan
-1. Upload model CNN (.h5)
-2. Upload satu atau banyak gambar beton
-3. Sistem akan melakukan klasifikasi otomatis
-4. Lihat hasil analisis pada dashboard
-5. Unduh hasil prediksi dalam format CSV
-""")
-
-# =====================================
-# UPLOAD MODEL
-# =====================================
-
-uploaded_model = st.file_uploader(
-    "📁 Upload Model CNN (.h5)",
+uploaded_model = st.sidebar.file_uploader(
+    "📁 Upload Model (.h5)",
     type=["h5"]
 )
 
@@ -98,132 +65,134 @@ if uploaded_model is not None:
             tmp.write(uploaded_model.read())
             model = load_model(tmp.name, compile=False)
 
-        st.success("✅ Model berhasil dimuat")
+        st.sidebar.success("Model loaded")
 
     except Exception as e:
-        st.error(f"Gagal memuat model: {e}")
+        st.sidebar.error(f"Error: {e}")
 
 # =====================================
-# UPLOAD GAMBAR
+# PREDICT PAGE
 # =====================================
 
-uploaded_images = st.file_uploader(
-    "🖼️ Upload Gambar Beton",
-    type=["jpg", "jpeg", "png"],
-    accept_multiple_files=True
-)
+if menu == "🔍 Predict":
 
-# =====================================
-# PREDIKSI
-# =====================================
+    st.title("🔍 AI Prediction")
 
-if model is not None and uploaded_images:
-
-    hasil_prediksi = []
-
-    st.header("🔍 Hasil Prediksi")
-
-    for uploaded_image in uploaded_images:
-
-        image = Image.open(uploaded_image).convert("RGB")
-
-        col1, col2 = st.columns([1, 2])
-
-        with col1:
-            st.image(
-                image,
-                caption=uploaded_image.name,
-                use_container_width=True
-            )
-
-        # preprocessing
-        img = image.resize((150, 150))
-        img_array = img_to_array(img)
-        img_array = np.expand_dims(img_array, axis=0)
-
-        # prediksi
-        prediction = model.predict(img_array, verbose=0)
-
-        class_names = ["Retak", "Tidak_Retak"]
-
-        predicted_index = np.argmax(prediction[0])
-        predicted_class = class_names[predicted_index]
-
-        confidence = float(prediction[0][predicted_index]) * 100
-
-        with col2:
-            st.subheader(uploaded_image.name)
-
-            if predicted_class == "Retak":
-                st.error(f"⚠️ Hasil: {predicted_class}")
-            else:
-                st.success(f"✅ Hasil: {predicted_class}")
-
-            st.info(f"Confidence: {confidence:.2f}%")
-            st.progress(min(confidence / 100, 1.0))
-
-        hasil_prediksi.append({
-            "Nama File": uploaded_image.name,
-            "Prediksi": predicted_class,
-            "Confidence (%)": round(confidence, 2)
-        })
-
-        st.divider()
-
-    df = pd.DataFrame(hasil_prediksi)
-
-    # dashboard
-    st.header("📊 Dashboard Analisis")
-
-    total = len(df)
-    jumlah_retak = len(df[df["Prediksi"] == "Retak"])
-    jumlah_normal = len(df[df["Prediksi"] == "Tidak_Retak"])
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric("Total Gambar", total)
-
-    with col2:
-        st.metric("Retak", jumlah_retak)
-
-    with col3:
-        st.metric("Tidak Retak", jumlah_normal)
-
-    persen_retak = (jumlah_retak / total * 100) if total > 0 else 0
-    persen_normal = (jumlah_normal / total * 100) if total > 0 else 0
-
-    st.subheader("📈 Persentase Hasil")
-
-    st.write(f"🔴 Retak : {persen_retak:.1f}%")
-    st.progress(persen_retak / 100)
-
-    st.write(f"🟢 Tidak Retak : {persen_normal:.1f}%")
-    st.progress(persen_normal / 100)
-
-    st.subheader("📊 Grafik Distribusi")
-    st.bar_chart(df["Prediksi"].value_counts())
-
-    st.subheader("🔎 Filter Data")
-
-    filter_hasil = st.selectbox(
-        "Pilih Kategori",
-        ["Semua", "Retak", "Tidak_Retak"]
+    uploaded_images = st.file_uploader(
+        "Upload gambar beton",
+        type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True
     )
 
-    if filter_hasil == "Semua":
-        filtered_df = df
+    if model is not None and uploaded_images:
+
+        hasil = []
+
+        st.markdown("## 📸 Hasil Analisis")
+
+        col_count = st.slider("Jumlah kolom grid", 2, 4, 3)
+
+        cols = st.columns(col_count)
+
+        for i, img_file in enumerate(uploaded_images):
+
+            image = Image.open(img_file).convert("RGB")
+
+            with st.spinner("Menganalisis gambar..."):
+                img = image.resize((150, 150))
+                img_array = img_to_array(img)
+                img_array = np.expand_dims(img_array, axis=0)
+
+                prediction = model.predict(img_array, verbose=0)
+
+                class_names = ["Retak", "Tidak_Retak"]
+
+                idx = np.argmax(prediction[0])
+                label = class_names[idx]
+                conf = float(prediction[0][idx]) * 100
+
+            # GRID DISPLAY
+            with cols[i % col_count]:
+
+                if label == "Retak":
+                    st.error("⚠️ Retak")
+                else:
+                    st.success("✔ Tidak Retak")
+
+                st.image(image, use_container_width=True)
+                st.write(f"Confidence: {conf:.2f}%")
+                st.progress(conf / 100)
+
+            hasil.append({
+                "File": img_file.name,
+                "Prediksi": label,
+                "Confidence": conf
+            })
+
+        df = pd.DataFrame(hasil)
+
+        st.markdown("---")
+
+        st.subheader("📥 Download Hasil")
+        st.download_button(
+            "Download CSV",
+            df.to_csv(index=False).encode(),
+            "hasil_prediksi.csv",
+            "text/csv"
+        )
+
+# =====================================
+# ANALYTICS
+# =====================================
+
+if menu == "📊 Analytics":
+
+    st.title("📊 Dashboard Analisis")
+
+    if "df" not in locals():
+        st.info("Lakukan prediksi terlebih dahulu")
     else:
-        filtered_df = df[df["Prediksi"] == filter_hasil]
 
-    st.subheader("📋 Ringkasan Hasil")
-    st.dataframe(filtered_df, use_container_width=True)
+        total = len(df)
+        retak = len(df[df["Prediksi"] == "Retak"])
+        normal = len(df[df["Prediksi"] == "Tidak_Retak"])
 
-    csv = filtered_df.to_csv(index=False).encode("utf-8")
+        col1, col2, col3 = st.columns(3)
 
-    st.download_button(
-        "📥 Download Hasil CSV",
-        data=csv,
-        file_name="hasil_prediksi_beton.csv",
-        mime="text/csv"
-    )
+        col1.metric("Total", total)
+        col2.metric("Retak", retak)
+        col3.metric("Tidak Retak", normal)
+
+        st.bar_chart(df["Prediksi"].value_counts())
+
+        st.subheader("Filter Confidence")
+
+        min_conf = st.slider("Minimal Confidence (%)", 0, 100, 50)
+
+        filtered = df[df["Confidence"] >= min_conf]
+
+        st.dataframe(filtered, use_container_width=True)
+
+# =====================================
+# ABOUT
+# =====================================
+
+if menu == "ℹ️ About":
+    st.title("ℹ️ About Project")
+
+    st.markdown("""
+    **ConcreteVision AI**
+
+    Sistem ini dibuat untuk membantu inspeksi visual beton menggunakan AI.
+
+    ### Teknologi:
+    - TensorFlow CNN
+    - Streamlit
+    - Python
+
+    ### Output:
+    - Retak
+    - Tidak Retak
+    """)
+
+    st.info("Project ini dibuat untuk keperluan akademik dan pengembangan AI")
