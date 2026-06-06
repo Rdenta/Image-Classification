@@ -2,22 +2,30 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import tempfile
+import io
 
 from PIL import Image
+import matplotlib.pyplot as plt
+
+import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
+
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
 
 # =====================================
 # CONFIG
 # =====================================
 st.set_page_config(
-    page_title="ConcreteVision AI Dashboard",
+    page_title="ConcreteVision AI Pro",
     page_icon="🧠",
     layout="wide"
 )
 
 # =====================================
-# SESSION STATE INIT
+# SESSION STATE
 # =====================================
 if "images" not in st.session_state:
     st.session_state.images = []
@@ -29,68 +37,81 @@ if "model" not in st.session_state:
     st.session_state.model = None
 
 # =====================================
-# SIDEBAR CONTROL PANEL
+# LOAD MODEL
 # =====================================
-st.sidebar.title("🧠 Control Panel")
+st.sidebar.title("🧠 AI Control Panel")
 
 menu = st.sidebar.radio(
     "Navigation",
     ["🏠 Home", "🔍 Predict", "📊 Dashboard"]
 )
 
-uploaded_model = st.sidebar.file_uploader(
-    "Upload Model (.h5)",
-    type=["h5"]
-)
+uploaded_model = st.sidebar.file_uploader("Upload Model (.h5)", type=["h5"])
 
 if uploaded_model:
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as tmp:
-            tmp.write(uploaded_model.read())
-            st.session_state.model = load_model(tmp.name, compile=False)
-        st.sidebar.success("Model Loaded")
-    except Exception as e:
-        st.sidebar.error(e)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as tmp:
+        tmp.write(uploaded_model.read())
+        st.session_state.model = load_model(tmp.name, compile=False)
+    st.sidebar.success("Model loaded")
 
 model = st.session_state.model
 
 # =====================================
-# STEP FLOW INDICATOR
+# GRAD-CAM FUNCTION
 # =====================================
-def step_flow(active):
-    cols = st.columns(3)
+def make_gradcam_heatmap(img_array, model, last_conv_layer_name=None):
 
-    steps = ["📤 Upload", "⚙️ Process", "📊 Result"]
+    grad_model = tf.keras.models.Model(
+        [model.inputs],
+        [model.get_layer(last_conv_layer_name).output, model.output]
+    )
 
-    for i, step in enumerate(steps):
-        if i == active:
-            cols[i].success(step)
-        else:
-            cols[i].info(step)
+    with tf.GradientTape() as tape:
+        conv_outputs, predictions = grad_model(img_array)
+        loss = tf.reduce_max(predictions)
 
-# =====================================
-# HOME
-# =====================================
-if menu == "🏠 Home":
+    grads = tape.gradient(loss, conv_outputs)
+    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
 
-    st.title("🧠 ConcreteVision AI Dashboard")
+    conv_outputs = conv_outputs[0]
 
-    st.markdown("AI untuk deteksi retak beton berbasis CNN")
+    heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
+    heatmap = tf.squeeze(heatmap)
 
-    st.markdown("---")
+    heatmap = tf.maximum(heatmap, 0) / tf.math.reduce_max(heatmap)
 
-    step_flow(0)
-
-    st.info("Masuk ke Predict untuk mulai analisis")
+    return heatmap.numpy()
 
 # =====================================
-# PREDICT
+# OVERLAY HEATMAP
+# =====================================
+def overlay_heatmap(img, heatmap):
+
+    img = np.array(img)
+
+    heatmap = np.uint8(255 * heatmap)
+    heatmap = Image.fromarray(heatmap).resize((img.shape[1], img.shape[0]))
+
+    heatmap = np.array(heatmap)
+
+    plt.figure(figsize=(4,4))
+    plt.imshow(img)
+    plt.imshow(heatmap, cmap="jet", alpha=0.5)
+    plt.axis("off")
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", bbox_inches="tight")
+    buf.seek(0)
+    plt.close()
+
+    return buf
+
+# =====================================
+# PREDICT PAGE
 # =====================================
 if menu == "🔍 Predict":
 
-    st.title("🔍 AI Prediction Dashboard")
-
-    step_flow(0)
+    st.title("🧠 AI Prediction + Explainability")
 
     uploaded_images = st.file_uploader(
         "Upload Gambar Beton",
@@ -105,43 +126,44 @@ if menu == "🔍 Predict":
 
     if model and len(images) > 0:
 
-        step_flow(1)
-
         results = []
 
-        col_count = st.slider("Grid Layout", 2, 4, 3)
-        cols = st.columns(col_count)
+        st.subheader("📸 Hasil + Grad-CAM")
 
-        st.subheader("📸 Prediction Results")
+        col1, col2 = st.columns(2)
 
-        for i, img_file in enumerate(images):
+        for img_file in images:
 
             image = Image.open(img_file).convert("RGB")
 
-            with st.spinner("AI analyzing..."):
-                img = image.resize((150, 150))
-                arr = img_to_array(img)
-                arr = np.expand_dims(arr, axis=0)
+            img = image.resize((150, 150))
+            arr = img_to_array(img)
+            arr = np.expand_dims(arr, axis=0)
 
-                pred = model.predict(arr, verbose=0)
+            pred = model.predict(arr, verbose=0)
 
-                labels = ["Retak", "Tidak_Retak"]
+            labels = ["Retak", "Tidak_Retak"]
 
-                idx = np.argmax(pred[0])
-                label = labels[idx]
-                conf = float(pred[0][idx]) * 100
+            idx = np.argmax(pred[0])
+            label = labels[idx]
+            conf = float(pred[0][idx]) * 100
 
-            with cols[i % col_count]:
+            # ==========================
+            # GRAD-CAM (ambil layer terakhir CNN)
+            # ==========================
+            try:
+                last_conv = [l.name for l in model.layers if "conv" in l.name][-1]
+                heatmap = make_gradcam_heatmap(arr, model, last_conv)
+                cam_img = overlay_heatmap(image, heatmap)
+            except:
+                cam_img = None
 
-                if label == "Retak":
-                    st.error("⚠️ RETAK")
-                else:
-                    st.success("✔ AMAN")
+            with col1:
+                st.image(image, caption=f"Original - {label} ({conf:.2f}%)")
 
-                st.image(image, use_container_width=True)
-
-                st.progress(conf / 100)
-                st.write(f"Confidence: {conf:.2f}%")
+            with col2:
+                if cam_img:
+                    st.image(cam_img, caption="Grad-CAM Heatmap")
 
             results.append({
                 "File": img_file.name,
@@ -150,26 +172,21 @@ if menu == "🔍 Predict":
             })
 
         df = pd.DataFrame(results)
-
         st.session_state.history.append(df)
 
-        step_flow(2)
-
-        st.markdown("---")
-
         st.download_button(
-            "📥 Download Report CSV",
+            "📥 Download CSV",
             df.to_csv(index=False).encode(),
-            "report.csv",
+            "result.csv",
             "text/csv"
         )
 
 # =====================================
-# DASHBOARD ANALYTICS
+# DASHBOARD
 # =====================================
 if menu == "📊 Dashboard":
 
-    st.title("📊 Analytics Dashboard")
+    st.title("📊 AI Analytics Dashboard")
 
     if len(st.session_state.history) == 0:
         st.warning("Belum ada data")
@@ -177,34 +194,53 @@ if menu == "📊 Dashboard":
 
         df = pd.concat(st.session_state.history)
 
-        total = len(df)
-        retak = len(df[df["Prediksi"] == "Retak"])
-        aman = len(df[df["Prediksi"] == "Tidak_Retak"])
+        st.subheader("Summary")
 
-        # ==============================
-        # CARD UI METRICS
-        # ==============================
         c1, c2, c3 = st.columns(3)
 
-        c1.metric("Total Images", total)
-        c2.metric("Retak", retak)
-        c3.metric("Tidak Retak", aman)
+        c1.metric("Total", len(df))
+        c2.metric("Retak", len(df[df["Prediksi"]=="Retak"]))
+        c3.metric("Aman", len(df[df["Prediksi"]=="Tidak_Retak"]))
 
-        st.markdown("---")
-
-        # ==============================
-        # CHART
-        # ==============================
-        st.subheader("📊 Distribution")
         st.bar_chart(df["Prediksi"].value_counts())
 
-        # ==============================
-        # FILTER
-        # ==============================
-        st.subheader("🔎 Filter Data")
+        # ==========================
+        # PDF REPORT GENERATOR
+        # ==========================
+        def generate_pdf(dataframe):
 
-        min_conf = st.slider("Minimum Confidence (%)", 0, 100, 50)
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer)
 
-        filtered = df[df["Confidence"] >= min_conf]
+            styles = getSampleStyleSheet()
+            elements = []
 
-        st.dataframe(filtered, use_container_width=True)
+            elements.append(Paragraph("ConcreteVision AI Report", styles["Title"]))
+            elements.append(Spacer(1, 12))
+
+            table_data = [["File", "Prediksi", "Confidence"]]
+
+            for _, row in dataframe.iterrows():
+                table_data.append([row["File"], row["Prediksi"], str(row["Confidence"])])
+
+            table = Table(table_data)
+            table.setStyle(TableStyle([
+                ("BACKGROUND", (0,0), (-1,0), colors.grey),
+                ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+                ("GRID", (0,0), (-1,-1), 0.5, colors.black)
+            ]))
+
+            elements.append(table)
+            doc.build(elements)
+
+            buffer.seek(0)
+            return buffer
+
+        pdf = generate_pdf(df)
+
+        st.download_button(
+            "📄 Download PDF Report",
+            pdf,
+            "report.pdf",
+            "application/pdf"
+        )
