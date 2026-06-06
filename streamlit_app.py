@@ -10,7 +10,6 @@ from tensorflow.keras.preprocessing.image import img_to_array
 # =====================================
 # CONFIG
 # =====================================
-
 st.set_page_config(
     page_title="ConcreteVision AI",
     page_icon="🧠",
@@ -18,40 +17,36 @@ st.set_page_config(
 )
 
 # =====================================
-# SIDEBAR NAVIGATION
+# DARK MODE TOGGLE (simple UI control)
 # =====================================
+theme = st.sidebar.selectbox("🎨 Theme", ["Light", "Dark"])
 
-st.sidebar.title("🧠 ConcreteVision")
+if theme == "Dark":
+    st.markdown("""
+    <style>
+        body {
+            background-color: #0e1117;
+            color: white;
+        }
+        .stApp {
+            background-color: #0e1117;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+# =====================================
+# NAVIGATION
+# =====================================
 menu = st.sidebar.radio(
-    "Navigasi",
+    "📌 Menu",
     ["🏠 Home", "🔍 Predict", "📊 Analytics", "ℹ️ About"]
 )
 
 st.sidebar.markdown("---")
 
 # =====================================
-# HOME
+# LOAD MODEL
 # =====================================
-
-if menu == "🏠 Home":
-    st.title("🏗️ ConcreteVision AI")
-    st.markdown("""
-    Sistem analisis retak beton berbasis Artificial Intelligence (CNN)
-
-    ### ✨ Fitur:
-    - Klasifikasi Retak / Tidak Retak
-    - Upload model AI (.h5)
-    - Analisis gambar banyak sekaligus
-    - Dashboard statistik
-    - UI modern & interaktif
-    """)
-
-    st.success("Silakan masuk ke menu Predict untuk mulai analisis")
-
-# =====================================
-# LOAD MODEL (GLOBAL)
-# =====================================
-
 uploaded_model = st.sidebar.file_uploader(
     "📁 Upload Model (.h5)",
     type=["h5"]
@@ -64,54 +59,64 @@ if uploaded_model is not None:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as tmp:
             tmp.write(uploaded_model.read())
             model = load_model(tmp.name, compile=False)
-
-        st.sidebar.success("Model loaded")
-
+        st.sidebar.success("Model Loaded ✅")
     except Exception as e:
         st.sidebar.error(f"Error: {e}")
 
 # =====================================
+# SESSION STORAGE (history)
+# =====================================
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+# =====================================
+# HOME PAGE
+# =====================================
+if menu == "🏠 Home":
+    st.title("🧠 ConcreteVision AI")
+    st.write("AI untuk klasifikasi retak beton berbasis CNN")
+
+    st.info("Upload model dan gambar di menu Predict untuk mulai analisis")
+
+# =====================================
 # PREDICT PAGE
 # =====================================
-
 if menu == "🔍 Predict":
 
-    st.title("🔍 AI Prediction")
+    st.title("🔍 AI Prediction System")
 
     uploaded_images = st.file_uploader(
-        "Upload gambar beton",
+        "Upload Gambar Beton",
         type=["jpg", "jpeg", "png"],
         accept_multiple_files=True
     )
 
     if model is not None and uploaded_images:
 
-        hasil = []
+        results = []
 
-        st.markdown("## 📸 Hasil Analisis")
-
-        col_count = st.slider("Jumlah kolom grid", 2, 4, 3)
-
+        col_count = st.slider("Grid Column", 2, 4, 3)
         cols = st.columns(col_count)
+
+        st.subheader("📸 Hasil Analisis")
 
         for i, img_file in enumerate(uploaded_images):
 
             image = Image.open(img_file).convert("RGB")
 
-            with st.spinner("Menganalisis gambar..."):
+            with st.spinner("🧠 AI sedang menganalisis..."):
                 img = image.resize((150, 150))
                 img_array = img_to_array(img)
                 img_array = np.expand_dims(img_array, axis=0)
 
                 prediction = model.predict(img_array, verbose=0)
 
-                class_names = ["Retak", "Tidak_Retak"]
+                labels = ["Retak", "Tidak_Retak"]
 
                 idx = np.argmax(prediction[0])
-                label = class_names[idx]
+                label = labels[idx]
                 conf = float(prediction[0][idx]) * 100
 
-            # GRID DISPLAY
             with cols[i % col_count]:
 
                 if label == "Retak":
@@ -120,38 +125,41 @@ if menu == "🔍 Predict":
                     st.success("✔ Tidak Retak")
 
                 st.image(image, use_container_width=True)
-                st.write(f"Confidence: {conf:.2f}%")
                 st.progress(conf / 100)
+                st.write(f"Confidence: {conf:.2f}%")
 
-            hasil.append({
+            results.append({
                 "File": img_file.name,
                 "Prediksi": label,
                 "Confidence": conf
             })
 
-        df = pd.DataFrame(hasil)
+        df = pd.DataFrame(results)
+
+        # save session history
+        st.session_state.history.append(df)
 
         st.markdown("---")
 
-        st.subheader("📥 Download Hasil")
         st.download_button(
-            "Download CSV",
+            "📥 Download CSV",
             df.to_csv(index=False).encode(),
             "hasil_prediksi.csv",
             "text/csv"
         )
 
 # =====================================
-# ANALYTICS
+# ANALYTICS PAGE
 # =====================================
-
 if menu == "📊 Analytics":
 
     st.title("📊 Dashboard Analisis")
 
-    if "df" not in locals():
-        st.info("Lakukan prediksi terlebih dahulu")
+    if len(st.session_state.history) == 0:
+        st.warning("Belum ada data prediksi")
     else:
+
+        df = pd.concat(st.session_state.history)
 
         total = len(df)
         retak = len(df[df["Prediksi"] == "Retak"])
@@ -165,7 +173,7 @@ if menu == "📊 Analytics":
 
         st.bar_chart(df["Prediksi"].value_counts())
 
-        st.subheader("Filter Confidence")
+        st.subheader("🔎 Filter Confidence")
 
         min_conf = st.slider("Minimal Confidence (%)", 0, 100, 50)
 
@@ -174,25 +182,26 @@ if menu == "📊 Analytics":
         st.dataframe(filtered, use_container_width=True)
 
 # =====================================
-# ABOUT
+# ABOUT PAGE
 # =====================================
-
 if menu == "ℹ️ About":
+
     st.title("ℹ️ About Project")
 
     st.markdown("""
-    **ConcreteVision AI**
+    ### ConcreteVision AI
 
-    Sistem ini dibuat untuk membantu inspeksi visual beton menggunakan AI.
+    Sistem AI untuk mendeteksi retakan pada permukaan beton.
 
-    ### Teknologi:
-    - TensorFlow CNN
-    - Streamlit
-    - Python
+    ### Features:
+    - CNN Classification
+    - Multi-image prediction
+    - Dashboard analytics
+    - Dark mode UI
+    - Session history
 
-    ### Output:
-    - Retak
-    - Tidak Retak
+    ### Tech Stack:
+    Python | TensorFlow | Streamlit
     """)
 
-    st.info("Project ini dibuat untuk keperluan akademik dan pengembangan AI")
+    st.success("Project siap untuk deployment Streamlit Cloud 🚀")
