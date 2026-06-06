@@ -12,7 +12,7 @@ from tensorflow.keras.preprocessing.image import img_to_array
 # PAGE CONFIG
 # =====================================
 st.set_page_config(
-    page_title="ConcreteVision AI",
+    page_title="ConcreteVision AI — Sistem Deteksi Keretakan Beton",
     page_icon="🧠",
     layout="wide"
 )
@@ -124,7 +124,7 @@ else:
 # HOME
 # =====================================
 if menu == "🏠 Home":
-    st.title("🧠 ConcreteVision AI")
+    st.title("🧠 ConcreteVision AI — Sistem Deteksi Keretakan Beton")
 
     st.markdown("---")
 
@@ -138,6 +138,19 @@ if menu == "🏠 Home":
     - Data tersimpan antar menu
     - Auto-detect & koreksi urutan label
     """)
+
+    st.markdown("---")
+
+    st.markdown("### 👤 Identitas Mahasiswa")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**Nama**")
+        st.markdown("**NIM**")
+        st.markdown("**Program Studi**")
+    with col2:
+        st.markdown(": Muhammad Reval Denta")
+        st.markdown(": 032400048")
+        st.markdown(": Elektro Mekanika")
 
 # =====================================
 # PREDICT
@@ -295,7 +308,9 @@ if menu == "ℹ️ About":
     st.title("ℹ️ About Project")
 
     st.markdown("""
-    ConcreteVision AI - Sistem deteksi retak beton berbasis CNN
+    **ConcreteVision AI — Sistem Deteksi Keretakan Beton**
+
+    Aplikasi berbasis Deep Learning (CNN) untuk mendeteksi keretakan pada permukaan beton secara otomatis melalui analisis citra digital.
 
     ✔ Persistent image upload
     ✔ Session-based history (no duplicate entries)
@@ -305,4 +320,18 @@ if menu == "ℹ️ About":
     ✔ Manual label swap toggle
     """)
 
+    st.markdown("---")
+
+    st.markdown("### 👤 Identitas Mahasiswa")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**Nama**")
+        st.markdown("**NIM**")
+        st.markdown("**Program Studi**")
+    with col2:
+        st.markdown(": Muhammad Reval Denta")
+        st.markdown(": 032400048")
+        st.markdown(": Elektro Mekanika")
+
+    st.markdown("---")
     st.success("Ready 🚀")
