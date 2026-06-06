@@ -12,7 +12,7 @@ from tensorflow.keras.preprocessing.image import img_to_array
 # PAGE CONFIG
 # =====================================
 st.set_page_config(
-    page_title="Sistem Deteksi Keretakan Permukaan Beton Berbasis CNN",
+    page_title="Sistem Analisis Retak Beton Berbasis AI",
     page_icon="🧱",
     layout="wide"
 )
