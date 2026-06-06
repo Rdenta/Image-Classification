@@ -15,6 +15,20 @@ st.set_page_config(
 
 st.title("🏗️ Deteksi Retak Beton Menggunakan CNN")
 
+# ==========================
+# IDENTITAS
+# ==========================
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.info("👤 Muhammad Reval Denta")
+
+with col2:
+    st.info("🆔 032400048")
+
+with col3:
+    st.info("⚡ Elektro Mekanika")
+
 st.markdown("""
 ### Cara Penggunaan
 1. Upload model `.h5`
