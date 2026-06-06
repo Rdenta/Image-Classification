@@ -5,3 +5,5 @@ pandas
 pillow
 h5py
 reportlab
+plotly
+matplotlib
