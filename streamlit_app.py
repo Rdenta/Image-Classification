@@ -12,8 +12,8 @@ from tensorflow.keras.preprocessing.image import img_to_array
 # PAGE CONFIG
 # =====================================
 st.set_page_config(
-    page_title="Sistem Deteksi Retak Beton Berbasis CNN",
-    page_icon="🧱",
+    page_title="Sistem Analisis Retak Beton Berbasis AI",
+    page_icon="🔬",
     layout="wide"
 )
 
@@ -124,7 +124,7 @@ else:
 # HOME
 # =====================================
 if menu == "🏠 Home":
-    st.title("🧱 Sistem Deteksi Retak Beton Berbasis CNN")
+    st.title("🔬 Sistem Analisis Retak Beton Berbasis AI")
 
     st.markdown("---")
 
@@ -308,7 +308,7 @@ if menu == "ℹ️ About":
     st.title("ℹ️ About Project")
 
     st.markdown("""
-    **🧱 Sistem Deteksi Retak Beton Berbasis CNN**
+    **🔬 Sistem Analisis Retak Beton Berbasis AI**
 
     Aplikasi berbasis Convolutional Neural Network (CNN) untuk mendeteksi dan mengklasifikasikan keretakan pada permukaan beton secara otomatis melalui analisis citra digital.
 
