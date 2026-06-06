@@ -135,7 +135,6 @@ with col1:
         caption=f"{uploaded_image.name}",
         width=st.session_state.zoom_level
     )
-
         # =====================================
         # PREPROCESSING
         # =====================================
