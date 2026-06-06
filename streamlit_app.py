@@ -17,113 +17,64 @@ st.set_page_config(
 )
 
 # =====================================
-# SESSION STATE (history)
+# SESSION STATE INIT (PENTING FIX)
 # =====================================
+
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# =====================================
-# THEME CONTROL (FIXED)
-# =====================================
-theme = st.sidebar.selectbox("🎨 Theme", ["Light", "Dark"])
+if "images" not in st.session_state:
+    st.session_state.images = []
 
-if theme == "Dark":
-    st.markdown("""
-    <style>
-
-    .stApp {
-        background-color: #0e1117;
-        color: #ffffff;
-    }
-
-    section[data-testid="stSidebar"] {
-        background-color: #111827;
-    }
-
-    h1, h2, h3, h4, p, span, label {
-        color: #ffffff !important;
-    }
-
-    div[data-testid="stMetric"] {
-        background-color: #1f2937;
-        padding: 10px;
-        border-radius: 10px;
-    }
-
-    .stDataFrame {
-        background-color: #111827;
-    }
-
-    button {
-        border-radius: 8px;
-    }
-
-    * {
-        transition: all 0.2s ease-in-out;
-    }
-
-    </style>
-    """, unsafe_allow_html=True)
-
-else:
-    st.markdown("""
-    <style>
-    .stApp {
-        background-color: white;
-        color: black;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+if "model" not in st.session_state:
+    st.session_state.model = None
 
 # =====================================
-# NAVIGATION
+# SIDEBAR MENU
 # =====================================
 menu = st.sidebar.radio(
-    "📌 Menu",
+    "📌 Navigation",
     ["🏠 Home", "🔍 Predict", "📊 Analytics", "ℹ️ About"]
 )
 
 st.sidebar.markdown("---")
 
 # =====================================
-# LOAD MODEL
+# MODEL UPLOAD (PERSISTENT)
 # =====================================
 uploaded_model = st.sidebar.file_uploader(
     "📁 Upload Model (.h5)",
     type=["h5"]
 )
 
-model = None
-
 if uploaded_model is not None:
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as tmp:
             tmp.write(uploaded_model.read())
-            model = load_model(tmp.name, compile=False)
+            st.session_state.model = load_model(tmp.name, compile=False)
         st.sidebar.success("Model loaded ✅")
     except Exception as e:
-        st.sidebar.error(f"Error: {e}")
+        st.sidebar.error(f"Error loading model: {e}")
+
+model = st.session_state.model
 
 # =====================================
-# HOME PAGE
+# HOME
 # =====================================
 if menu == "🏠 Home":
-
     st.title("🧠 ConcreteVision AI")
     st.markdown("""
-    Sistem AI untuk klasifikasi retak beton menggunakan CNN.
+    AI untuk klasifikasi retak beton menggunakan CNN.
 
     ### Fitur:
     - Upload model AI
-    - Prediksi banyak gambar
-    - Dashboard analisis
-    - Dark / Light mode
+    - Analisis gambar
+    - Dashboard statistik
+    - Data tersimpan antar menu (FIXED)
     """)
 
-    st.success("Masuk ke Predict untuk mulai analisis")
-
 # =====================================
-# PREDICT PAGE
+# PREDICT
 # =====================================
 if menu == "🔍 Predict":
 
@@ -135,20 +86,27 @@ if menu == "🔍 Predict":
         accept_multiple_files=True
     )
 
-    if model is not None and uploaded_images:
+    # 🔥 FIX: SIMPAN KE SESSION STATE
+    if uploaded_images:
+        st.session_state.images = uploaded_images
+
+    # pakai data dari session (ANTI HILANG)
+    images = st.session_state.images
+
+    if model is not None and len(images) > 0:
 
         results = []
 
-        col_count = st.slider("Grid Column", 2, 4, 3)
+        st.subheader("📸 Hasil Prediksi")
+
+        col_count = st.slider("Grid Columns", 2, 4, 3)
         cols = st.columns(col_count)
 
-        st.subheader("📸 Hasil Analisis")
-
-        for i, img_file in enumerate(uploaded_images):
+        for i, img_file in enumerate(images):
 
             image = Image.open(img_file).convert("RGB")
 
-            with st.spinner("🧠 AI sedang menganalisis..."):
+            with st.spinner("🧠 AI processing..."):
                 img = image.resize((150, 150))
                 img_array = img_to_array(img)
                 img_array = np.expand_dims(img_array, axis=0)
@@ -175,11 +133,12 @@ if menu == "🔍 Predict":
             results.append({
                 "File": img_file.name,
                 "Prediksi": label,
-                "Confidence": conf
+                "Confidence (%)": round(conf, 2)
             })
 
         df = pd.DataFrame(results)
 
+        # simpan history
         st.session_state.history.append(df)
 
         st.markdown("---")
@@ -191,8 +150,11 @@ if menu == "🔍 Predict":
             "text/csv"
         )
 
+    else:
+        st.info("Upload model dan gambar terlebih dahulu")
+
 # =====================================
-# ANALYTICS PAGE
+# ANALYTICS
 # =====================================
 if menu == "📊 Analytics":
 
@@ -210,34 +172,33 @@ if menu == "📊 Analytics":
 
         col1, col2, col3 = st.columns(3)
 
-        col1.metric("Total", total)
+        col1.metric("Total Gambar", total)
         col2.metric("Retak", retak)
         col3.metric("Tidak Retak", normal)
 
         st.bar_chart(df["Prediksi"].value_counts())
 
-        st.subheader("Filter Confidence")
+        st.subheader("🔎 Filter Confidence")
 
-        min_conf = st.slider("Minimal Confidence (%)", 0, 100, 50)
+        min_conf = st.slider("Minimum Confidence (%)", 0, 100, 50)
 
-        filtered = df[df["Confidence"] >= min_conf]
+        filtered = df[df["Confidence (%)"] >= min_conf]
 
         st.dataframe(filtered, use_container_width=True)
 
 # =====================================
-# ABOUT PAGE
+# ABOUT
 # =====================================
 if menu == "ℹ️ About":
 
     st.title("ℹ️ About Project")
 
     st.markdown("""
-    ConcreteVision AI adalah sistem AI untuk mendeteksi retakan beton.
+    ConcreteVision AI - Sistem deteksi retak beton berbasis CNN
 
-    Teknologi:
-    - TensorFlow
-    - CNN
-    - Streamlit
+    ✔ Persistent image upload (FIXED)
+    ✔ Session-based history
+    ✔ Streamlit deployment ready
     """)
 
-    st.success("Siap deploy ke Streamlit Cloud 🚀")
+    st.success("Ready 🚀")
