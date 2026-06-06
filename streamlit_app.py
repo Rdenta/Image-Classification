@@ -5,18 +5,18 @@ import numpy as np
 import pandas as pd
 import tempfile
 from datetime import datetime
-
+ 
 from PIL import Image
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
-
+ 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
-
+ 
 # =====================================
 # FUNGSI GENERATE PDF
 # =====================================
@@ -25,21 +25,21 @@ def generate_pdf(df, total_img, total_retak, total_aman, persen_retak, persen_am
     doc = SimpleDocTemplate(buffer, pagesize=A4,
                             rightMargin=2*cm, leftMargin=2*cm,
                             topMargin=2*cm, bottomMargin=2*cm)
-
+ 
     styles = getSampleStyleSheet()
     style_title   = ParagraphStyle("title",   parent=styles["Title"],   fontSize=14, alignment=TA_CENTER, spaceAfter=4)
     style_sub     = ParagraphStyle("sub",     parent=styles["Normal"],  fontSize=10, alignment=TA_CENTER, textColor=colors.grey, spaceAfter=2)
     style_heading = ParagraphStyle("heading", parent=styles["Heading2"],fontSize=11, spaceBefore=12, spaceAfter=4)
     style_normal  = ParagraphStyle("normal",  parent=styles["Normal"],  fontSize=9)
-
+ 
     story = []
-
+ 
     # HEADER
     story.append(Paragraph("LAPORAN HASIL ANALISIS RETAK BETON", style_title))
     story.append(Paragraph("Sistem Analisis Retak Beton Berbasis AI", style_sub))
     story.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
     story.append(Spacer(1, 0.3*cm))
-
+ 
     # IDENTITAS MAHASISWA
     story.append(Paragraph("Identitas Mahasiswa", style_heading))
     identitas_data = [
@@ -63,7 +63,7 @@ def generate_pdf(df, total_img, total_retak, total_aman, persen_retak, persen_am
     ]))
     story.append(tbl_identitas)
     story.append(Spacer(1, 0.3*cm))
-
+ 
     # RINGKASAN
     story.append(Paragraph("Ringkasan Prediksi", style_heading))
     ringkasan_data = [
@@ -89,7 +89,7 @@ def generate_pdf(df, total_img, total_retak, total_aman, persen_retak, persen_am
     ]))
     story.append(tbl_ringkasan)
     story.append(Spacer(1, 0.3*cm))
-
+ 
     # TABEL DETAIL HASIL
     story.append(Paragraph("Detail Hasil Prediksi", style_heading))
     header = [["No", "Nama File", "Resolusi", "Ukuran (KB)", "Prediksi", "Confidence (%)", "Waktu Prediksi"]]
@@ -126,7 +126,7 @@ def generate_pdf(df, total_img, total_retak, total_aman, persen_retak, persen_am
     ]))
     story.append(tbl_detail)
     story.append(Spacer(1, 0.5*cm))
-
+ 
     # FOOTER
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
     story.append(Spacer(1, 0.2*cm))
@@ -135,51 +135,440 @@ def generate_pdf(df, total_img, total_retak, total_aman, persen_retak, persen_am
         f"pada {datetime.now().strftime('%d %B %Y pukul %H:%M:%S')}.",
         style_normal
     ))
-
+ 
     doc.build(story)
     buffer.seek(0)
     return buffer
-
-
+ 
+ 
 st.set_page_config(
     page_title="Sistem Analisis Retak Beton Berbasis AI",
     page_icon="🔬",
     layout="wide"
 )
-
+ 
+# =====================================
+# CUSTOM CSS & TEMA
+# =====================================
+st.markdown("""
+<style>
+/* ── Google Fonts ── */
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+ 
+/* ── CSS Variables ── */
+:root {
+    --bg-main:       #0D1117;
+    --bg-card:       #161B22;
+    --bg-card2:      #1C2333;
+    --accent:        #00C9A7;
+    --accent2:       #FF6B6B;
+    --accent3:       #FFD93D;
+    --text-primary:  #E6EDF3;
+    --text-muted:    #8B949E;
+    --border:        #30363D;
+    --radius:        12px;
+    --shadow:        0 4px 24px rgba(0,0,0,0.4);
+}
+ 
+/* ── Global Reset ── */
+html, body, [class*="css"] {
+    font-family: 'DM Sans', sans-serif !important;
+    background-color: var(--bg-main) !important;
+    color: var(--text-primary) !important;
+}
+ 
+/* ── Main container ── */
+.main .block-container {
+    padding: 2rem 2.5rem 3rem 2.5rem !important;
+    max-width: 1200px !important;
+}
+ 
+/* ── Hero Banner ── */
+.hero-banner {
+    background: linear-gradient(135deg, #0D1117 0%, #1a2744 50%, #0D1117 100%);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 2.5rem 2rem 2rem 2rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+}
+.hero-banner::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 220px; height: 220px;
+    background: radial-gradient(circle, rgba(0,201,167,0.12) 0%, transparent 70%);
+    border-radius: 50%;
+}
+.hero-banner::after {
+    content: '';
+    position: absolute;
+    bottom: -40px; left: 30%;
+    width: 160px; height: 160px;
+    background: radial-gradient(circle, rgba(255,107,107,0.08) 0%, transparent 70%);
+    border-radius: 50%;
+}
+.hero-title {
+    font-family: 'Space Mono', monospace !important;
+    font-size: 1.9rem !important;
+    font-weight: 700 !important;
+    color: var(--text-primary) !important;
+    margin: 0 0 0.4rem 0 !important;
+    letter-spacing: -0.5px;
+}
+.hero-title span {
+    color: var(--accent);
+}
+.hero-sub {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    margin: 0;
+    font-weight: 400;
+}
+.hero-badge {
+    display: inline-block;
+    background: rgba(0,201,167,0.12);
+    border: 1px solid rgba(0,201,167,0.3);
+    color: var(--accent);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-bottom: 0.8rem;
+}
+ 
+/* ── Section Title ── */
+.section-title {
+    font-family: 'Space Mono', monospace !important;
+    font-size: 1.1rem !important;
+    font-weight: 700 !important;
+    color: var(--text-primary) !important;
+    border-left: 4px solid var(--accent);
+    padding-left: 12px;
+    margin: 1.8rem 0 1rem 0;
+}
+ 
+/* ── Info Card ── */
+.info-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.4rem 1.6rem;
+    margin-bottom: 1rem;
+    transition: border-color 0.2s;
+}
+.info-card:hover {
+    border-color: var(--accent);
+}
+.info-card .label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+.info-card .value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+ 
+/* ── Metric Cards ── */
+.metric-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.metric-card {
+    flex: 1;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.2rem 1.4rem;
+    text-align: center;
+    transition: transform 0.2s, border-color 0.2s;
+}
+.metric-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+}
+.metric-card .m-icon { font-size: 1.6rem; margin-bottom: 4px; }
+.metric-card .m-val  {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1.1;
+}
+.metric-card .m-label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-top: 4px;
+}
+ 
+/* ── Prediction Result Cards ── */
+.pred-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-bottom: 0.8rem;
+    text-align: center;
+}
+.pred-retak {
+    border-top: 3px solid var(--accent2);
+    background: linear-gradient(180deg, rgba(255,107,107,0.05) 0%, var(--bg-card) 100%);
+}
+.pred-aman {
+    border-top: 3px solid var(--accent);
+    background: linear-gradient(180deg, rgba(0,201,167,0.05) 0%, var(--bg-card) 100%);
+}
+.pred-label-retak {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--accent2);
+    letter-spacing: 1px;
+}
+.pred-label-aman {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 1px;
+}
+.pred-conf {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+.pred-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+ 
+/* ── Alert / Info Box ── */
+.custom-alert {
+    border-radius: var(--radius);
+    padding: 0.9rem 1.2rem;
+    margin: 0.8rem 0;
+    font-size: 0.88rem;
+    font-weight: 500;
+    border-left: 4px solid;
+}
+.alert-warning {
+    background: rgba(255,217,61,0.08);
+    border-color: var(--accent3);
+    color: var(--accent3);
+}
+.alert-success {
+    background: rgba(0,201,167,0.08);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.alert-error {
+    background: rgba(255,107,107,0.08);
+    border-color: var(--accent2);
+    color: var(--accent2);
+}
+.alert-info {
+    background: rgba(88,166,255,0.08);
+    border-color: #58A6FF;
+    color: #58A6FF;
+}
+ 
+/* ── Feature List ── */
+.feature-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.feature-list li {
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.feature-list li:last-child { border-bottom: none; }
+.feature-dot {
+    width: 7px; height: 7px;
+    background: var(--accent);
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+ 
+/* ── Sidebar Styling ── */
+[data-testid="stSidebar"] {
+    background: var(--bg-card) !important;
+    border-right: 1px solid var(--border) !important;
+}
+[data-testid="stSidebar"] .block-container {
+    padding: 1.5rem 1rem !important;
+}
+.sidebar-logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--accent);
+    text-align: center;
+    padding: 0.5rem 0 1rem 0;
+    letter-spacing: 1px;
+}
+.sidebar-logo span {
+    display: block;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+}
+ 
+/* ── Streamlit Native Widget Override ── */
+[data-testid="stFileUploader"] {
+    border: 2px dashed var(--border) !important;
+    border-radius: var(--radius) !important;
+    background: var(--bg-card2) !important;
+    transition: border-color 0.2s;
+}
+[data-testid="stFileUploader"]:hover {
+    border-color: var(--accent) !important;
+}
+.stButton > button {
+    background: var(--accent) !important;
+    color: #0D1117 !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 0.88rem !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 0.5rem 1.2rem !important;
+    transition: opacity 0.2s, transform 0.15s !important;
+    letter-spacing: 0.3px;
+}
+.stButton > button:hover {
+    opacity: 0.88 !important;
+    transform: translateY(-1px) !important;
+}
+.stDownloadButton > button {
+    background: transparent !important;
+    color: var(--accent) !important;
+    border: 1.5px solid var(--accent) !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 0.88rem !important;
+    border-radius: 8px !important;
+    transition: background 0.2s, color 0.2s !important;
+}
+.stDownloadButton > button:hover {
+    background: var(--accent) !important;
+    color: #0D1117 !important;
+}
+[data-testid="stMetric"] {
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    padding: 1rem 1.2rem !important;
+}
+[data-testid="stMetricValue"] {
+    font-family: 'Space Mono', monospace !important;
+    color: var(--accent) !important;
+    font-size: 1.6rem !important;
+}
+[data-testid="stMetricLabel"] {
+    color: var(--text-muted) !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+}
+[data-testid="stAlert"] {
+    border-radius: var(--radius) !important;
+}
+.stSlider [data-baseweb="slider"] {
+    padding-top: 0.5rem;
+}
+.stRadio [data-testid="stWidgetLabel"] p {
+    font-weight: 600 !important;
+    color: var(--text-muted) !important;
+    font-size: 0.75rem !important;
+    letter-spacing: 1px !important;
+    text-transform: uppercase !important;
+}
+div[data-baseweb="radio"] label {
+    padding: 0.45rem 0.8rem !important;
+    border-radius: 8px !important;
+    transition: background 0.15s !important;
+}
+div[data-baseweb="radio"] label:hover {
+    background: rgba(0,201,167,0.08) !important;
+}
+hr { border-color: var(--border) !important; }
+ 
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-main); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+ 
+/* ── Dataframe / Table ── */
+[data-testid="stDataFrame"] {
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    overflow: hidden;
+}
+</style>
+""", unsafe_allow_html=True)
+ 
 # =====================================
 # SESSION STATE INIT
 # =====================================
 if "history" not in st.session_state:
     st.session_state.history = []
-
+ 
 if "images" not in st.session_state:
     st.session_state.images = []
-
+ 
 if "model" not in st.session_state:
     st.session_state.model = None
-
+ 
 if "labels" not in st.session_state:
     st.session_state.labels = ["Retak", "Tidak_Retak"]  # default
-
+ 
 # Tracker untuk cegah double-append history
 if "last_predicted_key" not in st.session_state:
     st.session_state.last_predicted_key = None
-
+ 
 # Key dinamis untuk reset file_uploader widget
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 0
-
+ 
 # =====================================
 # SIDEBAR MENU
 # =====================================
+st.sidebar.markdown("""
+<div class="sidebar-logo">
+    🔬 CRACK<span>Concrete Analysis AI</span>
+</div>
+""", unsafe_allow_html=True)
+ 
+st.sidebar.markdown("---")
+ 
 menu = st.sidebar.radio(
-    "📌 Navigation",
+    "📌 NAVIGATION",
     ["🏠 Home", "🔍 Predict", "📊 Analytics", "ℹ️ About"]
 )
-
+ 
 st.sidebar.markdown("---")
-
+ 
 # =====================================
 # MODEL UPLOAD
 # =====================================
@@ -187,27 +576,27 @@ uploaded_model = st.sidebar.file_uploader(
     "📁 Upload Model (.h5)",
     type=["h5"]
 )
-
+ 
 if uploaded_model is not None:
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as tmp:
             tmp.write(uploaded_model.read())
             tmp_path = tmp.name
-
+ 
         st.session_state.model = load_model(tmp_path, compile=False)
         os.unlink(tmp_path)
-
+ 
         # =============================================
         # AUTO-DETECT LABEL ORDER dari model
         # =============================================
         model_obj = st.session_state.model
         detected_labels = ["Retak", "Tidak_Retak"]  # default fallback
-
+ 
         # Coba baca class names dari output layer model
         try:
             output_layer = model_obj.layers[-1]
             num_classes = output_layer.output_shape[-1]
-
+ 
             # Coba ambil dari names jika tersedia
             if hasattr(output_layer, 'class_names'):
                 detected_labels = output_layer.class_names
@@ -217,17 +606,17 @@ if uploaded_model is not None:
                     detected_labels = ["Retak", "Tidak_Retak"]
         except Exception:
             pass
-
+ 
         st.session_state.labels = detected_labels
-
+ 
         st.sidebar.success("Model loaded ✅")
-
+ 
     except Exception as e:
         st.sidebar.error(f"Error loading model: {e}")
-
+ 
 model = st.session_state.model
 labels = st.session_state.labels
-
+ 
 # =====================================
 # MODEL STATUS INFO
 # =====================================
@@ -235,13 +624,13 @@ if model is None:
     st.sidebar.warning("⚠️ Model belum diupload")
 else:
     st.sidebar.success("🧠 Model siap digunakan")
-
+ 
     # Tampilkan info label order di sidebar
     st.sidebar.markdown("---")
     st.sidebar.markdown("**🏷️ Urutan Label Model:**")
     for i, lbl in enumerate(labels):
         st.sidebar.markdown(f"- Index `{i}` → `{lbl}`")
-
+ 
     # Izinkan user koreksi manual jika label terdeteksi terbalik
     st.sidebar.markdown("---")
     st.sidebar.markdown("**⚙️ Koreksi Label (jika prediksi terbalik):**")
@@ -249,100 +638,132 @@ else:
     if swap:
         labels = labels[::-1]
         st.session_state.labels = labels
-
+ 
 # =====================================
 # HOME
 # =====================================
 if menu == "🏠 Home":
-    st.title("🔬 Sistem Analisis Retak Beton Berbasis AI")
-
-    st.markdown("---")
-
+ 
+    # Hero Banner
     st.markdown("""
-    Aplikasi klasifikasi keretakan permukaan beton menggunakan metode Convolutional Neural Network (CNN).
-
-    ### Fitur:
-    - Upload model CNN
-    - Analisis gambar beton
-    - Dashboard statistik
-    - Data tersimpan antar menu
-    - Auto-detect & koreksi urutan label
-    """)
-
-    st.markdown("---")
-
-    st.markdown("### 👤 Identitas Mahasiswa")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("**Nama**")
-        st.markdown("**NIM**")
-        st.markdown("**Program Studi**")
-    with col2:
-        st.markdown(": Muhammad Reval Denta")
-        st.markdown(": 032400048")
-        st.markdown(": Elektro Mekanika")
-
+    <div class="hero-banner">
+        <div class="hero-badge">AI &nbsp;·&nbsp; CNN &nbsp;·&nbsp; Computer Vision</div>
+        <div class="hero-title">Sistem Analisis <span>Retak Beton</span><br>Berbasis AI</div>
+        <div class="hero-sub">Deteksi dan klasifikasi keretakan permukaan beton secara otomatis menggunakan
+        Convolutional Neural Network (CNN) berbasis analisis citra digital.</div>
+    </div>
+    """, unsafe_allow_html=True)
+ 
+    col_left, col_right = st.columns([1.1, 1])
+ 
+    with col_left:
+        st.markdown('<div class="section-title">Fitur Aplikasi</div>', unsafe_allow_html=True)
+        st.markdown("""
+        <div class="info-card">
+            <ul class="feature-list">
+                <li><span class="feature-dot"></span> Upload &amp; load model CNN (.h5) langsung dari browser</li>
+                <li><span class="feature-dot"></span> Analisis multi-gambar beton sekaligus</li>
+                <li><span class="feature-dot"></span> Dashboard statistik &amp; visualisasi hasil</li>
+                <li><span class="feature-dot"></span> Auto-detect urutan label (sigmoid / softmax)</li>
+                <li><span class="feature-dot"></span> Koreksi manual label jika prediksi terbalik</li>
+                <li><span class="feature-dot"></span> Export laporan PDF &amp; CSV otomatis</li>
+                <li><span class="feature-dot"></span> Data tersimpan antar sesi menu</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+ 
+    with col_right:
+        st.markdown('<div class="section-title">Identitas Mahasiswa</div>', unsafe_allow_html=True)
+        st.markdown("""
+        <div class="info-card">
+            <div class="label">Nama</div>
+            <div class="value">Muhammad Reval Denta</div>
+        </div>
+        <div class="info-card">
+            <div class="label">NIM</div>
+            <div class="value">032400048</div>
+        </div>
+        <div class="info-card">
+            <div class="label">Program Studi</div>
+            <div class="value">Elektro Mekanika</div>
+        </div>
+        <div class="custom-alert alert-success">
+            &#9989; &nbsp; Aplikasi siap digunakan &mdash; upload model .h5 via sidebar untuk memulai.
+        </div>
+        """, unsafe_allow_html=True)
+ 
 # =====================================
 # PREDICT
 # =====================================
 if menu == "🔍 Predict":
-
-    st.title("🔍 Prediksi Keretakan Beton")
-
+ 
+    st.markdown("""
+    <div class="hero-banner">
+        <div class="hero-badge">ANALISIS CITRA</div>
+        <div class="hero-title">&#128269; Prediksi <span>Keretakan Beton</span></div>
+        <div class="hero-sub">Upload gambar beton dan model CNN untuk memulai analisis otomatis.</div>
+    </div>
+    """, unsafe_allow_html=True)
+ 
     uploaded_images = st.file_uploader(
-        "Upload gambar beton",
+        "&#128194; Upload Gambar Beton (JPG / PNG)",
         type=["jpg", "jpeg", "png"],
         accept_multiple_files=True,
         key=f"uploader_{st.session_state.uploader_key}"
     )
-
+ 
     # Simpan ke session
     if uploaded_images:
         st.session_state.images = uploaded_images
-
+ 
     images = st.session_state.images
-
+ 
     # RESET BUTTON
     colA, colB = st.columns(2)
-
+ 
     with colA:
         reset = st.button("🔄 Reset Gambar")
-
+ 
     if reset:
         st.session_state.images = []
         st.session_state.history = []
         st.session_state.last_predicted_key = None
         st.session_state.uploader_key += 1
         st.rerun()
-
+ 
     if model is not None and len(images) > 0:
-
+ 
         results = []
-
-        st.subheader("📸 Hasil Prediksi")
-
+ 
+        st.markdown('<div class="section-title">📸 Hasil Prediksi</div>', unsafe_allow_html=True)
+ 
         # Tampilkan label yang sedang dipakai
-        st.info(f"🏷️ Label aktif: Index 0 = **{labels[0]}**, Index 1 = **{labels[1]}** — Jika terbalik, aktifkan toggle 'Balik urutan label' di sidebar.")
-
+        st.markdown(f"""
+        <div class="custom-alert alert-info">
+            &#127991;&#65039; Label aktif: Index 0 = <b>{labels[0]}</b>, Index 1 = <b>{labels[1]}</b>
+            &nbsp;&mdash;&nbsp; Jika terbalik, aktifkan toggle <i>Balik urutan label</i> di sidebar.
+        </div>
+        """, unsafe_allow_html=True)
+ 
         col_count = st.slider("Grid Columns", 2, 4, 3)
         cols = st.columns(col_count)
-
+ 
         for i, img_file in enumerate(images):
-
+ 
             image = Image.open(img_file).convert("RGB")
             lebar, tinggi = image.size
             ukuran_file   = img_file.size / 1024  # dalam KB
             waktu_prediksi = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
-
+ 
             with st.spinner("🔬 Memproses gambar..."):
                 img = image.resize((150, 150))
                 img_array = img_to_array(img)
                 img_array = np.expand_dims(img_array, axis=0)
-
+ 
                 prediction = model.predict(img_array, verbose=0)
-
+ 
                 output = prediction[0]
-
+ 
                 # Handle sigmoid (1 output) vs softmax (2 output)
                 if len(output) == 1:
                     # Sigmoid: nilai mendekati 1 = Tidak_Retak, mendekati 0 = Retak
@@ -360,21 +781,28 @@ if menu == "🔍 Predict":
                     idx = np.argmax(output)
                     label = labels[idx]
                     conf = float(output[idx]) * 100
-
+ 
             with cols[i % col_count]:
-
-                if label == "Retak":
-                    st.error("⚠️ Retak")
-                else:
-                    st.success("✔ Tidak Retak")
-
+                card_class = "pred-retak" if label == "Retak" else "pred-aman"
+                label_class = "pred-label-retak" if label == "Retak" else "pred-label-aman"
+                icon = "⚠️" if label == "Retak" else "✔"
+                st.markdown(f"""
+                <div class="pred-card {card_class}">
+                    <div class="{label_class}">{icon} {label.replace("_", " ")}</div>
+                    <div class="pred-conf">Confidence: {conf:.2f}%</div>
+                </div>
+                """, unsafe_allow_html=True)
+ 
                 st.image(image, use_container_width=True)
                 st.progress(conf / 100)
-                st.caption(f"📁 {img_file.name}")
-                st.caption(f"📐 {lebar}x{tinggi} px  |  💾 {ukuran_file:.1f} KB")
-                st.caption(f"🕐 {waktu_prediksi}")
-                st.write(f"Confidence: {conf:.2f}%")
-
+                st.markdown(f"""
+                <div class="pred-meta">
+                    📁 {img_file.name}<br>
+                    📐 {lebar}x{tinggi} px &nbsp;|&nbsp; 💾 {ukuran_file:.1f} KB<br>
+                    🕐 {waktu_prediksi}
+                </div>
+                """, unsafe_allow_html=True)
+ 
             results.append({
                 "File"           : img_file.name,
                 "Ukuran (KB)"    : round(ukuran_file, 1),
@@ -383,19 +811,19 @@ if menu == "🔍 Predict":
                 "Confidence (%)" : round(conf, 2),
                 "Waktu Prediksi" : waktu_prediksi
             })
-
+ 
         df = pd.DataFrame(results)
-
+ 
         # Cegah double-append history
         image_names = sorted([f.name for f in images])
         current_key = str(image_names)
-
+ 
         if current_key != st.session_state.last_predicted_key:
             st.session_state.history.append(df)
             st.session_state.last_predicted_key = current_key
-
+ 
         st.markdown("---")
-
+ 
         # =====================================
         # RINGKASAN PREDIKSI OTOMATIS
         # =====================================
@@ -404,25 +832,25 @@ if menu == "🔍 Predict":
         total_aman  = len(df[df["Prediksi"] == "Tidak_Retak"])
         persen_retak = (total_retak / total_img * 100) if total_img > 0 else 0
         persen_aman  = (total_aman  / total_img * 100) if total_img > 0 else 0
-
-        st.subheader("📋 Ringkasan Hasil Prediksi")
-
+ 
+        st.markdown('<div class="section-title">📋 Ringkasan Hasil Prediksi</div>', unsafe_allow_html=True)
+ 
         col_r1, col_r2, col_r3 = st.columns(3)
         col_r1.metric("🖼️ Total Gambar", total_img)
         col_r2.metric("⚠️ Retak", f"{total_retak} ({persen_retak:.1f}%)")
         col_r3.metric("✅ Tidak Retak", f"{total_aman} ({persen_aman:.1f}%)")
-
+ 
         if total_retak == 0:
-            st.success(f"✅ Dari **{total_img}** gambar yang dianalisis, **tidak ditemukan keretakan** pada seluruh sampel beton.")
+            st.markdown(f'''<div class="custom-alert alert-success">&#9989; Dari <b>{total_img}</b> gambar yang dianalisis, <b>tidak ditemukan keretakan</b> pada seluruh sampel beton.</div>''', unsafe_allow_html=True)
         elif total_aman == 0:
-            st.error(f"⚠️ Dari **{total_img}** gambar yang dianalisis, **seluruh sampel terdeteksi retak** dan perlu penanganan lebih lanjut.")
+            st.markdown(f'''<div class="custom-alert alert-error">&#9888;&#65039; Dari <b>{total_img}</b> gambar yang dianalisis, <b>seluruh sampel terdeteksi retak</b> dan perlu penanganan lebih lanjut.</div>''', unsafe_allow_html=True)
         else:
-            st.warning(f"🔎 Dari **{total_img}** gambar yang dianalisis, ditemukan **{total_retak} retak ({persen_retak:.1f}%)** dan **{total_aman} tidak retak ({persen_aman:.1f}%)**. Segera periksa sampel yang terdeteksi retak.")
-
+            st.markdown(f'''<div class="custom-alert alert-warning">&#128270; Dari <b>{total_img}</b> gambar, ditemukan <b>{total_retak} retak ({persen_retak:.1f}%)</b> dan <b>{total_aman} tidak retak ({persen_aman:.1f}%)</b>. Segera periksa sampel yang terdeteksi retak.</div>''', unsafe_allow_html=True)
+ 
         st.markdown("---")
-
+ 
         col_dl1, col_dl2 = st.columns(2)
-
+ 
         with col_dl1:
             st.download_button(
                 "📥 Download CSV",
@@ -431,7 +859,7 @@ if menu == "🔍 Predict":
                 "text/csv",
                 use_container_width=True
             )
-
+ 
         with col_dl2:
             pdf_buffer = generate_pdf(
                 df, total_img, total_retak, total_aman, persen_retak, persen_aman
@@ -443,75 +871,119 @@ if menu == "🔍 Predict":
                 "application/pdf",
                 use_container_width=True
             )
-
+ 
     else:
-        st.info("Upload model dan gambar terlebih dahulu")
-
+        st.markdown('<div class="custom-alert alert-info">&#8505;&#65039; &nbsp; Upload model (.h5) via sidebar dan pilih gambar beton untuk memulai analisis.</div>', unsafe_allow_html=True)
+ 
 # =====================================
 # ANALYTICS
 # =====================================
 if menu == "📊 Analytics":
-
-    st.title("📊 Dashboard Analisis")
-
+ 
+    st.markdown("""
+    <div class="hero-banner">
+        <div class="hero-badge">STATISTIK</div>
+        <div class="hero-title">&#128202; Dashboard <span>Analisis</span></div>
+        <div class="hero-sub">Ringkasan dan statistik dari seluruh sesi prediksi.</div>
+    </div>
+    """, unsafe_allow_html=True)
+ 
     if len(st.session_state.history) == 0:
-        st.warning("Belum ada data prediksi")
+        st.markdown('<div class="custom-alert alert-warning">&#9888;&#65039; &nbsp; Belum ada data prediksi. Lakukan prediksi di menu Predict terlebih dahulu.</div>', unsafe_allow_html=True)
     else:
-
+ 
         df = pd.concat(st.session_state.history, ignore_index=True)
-
+ 
         total = len(df)
         retak = len(df[df["Prediksi"] == "Retak"])
         normal = len(df[df["Prediksi"] == "Tidak_Retak"])
-
+ 
         col1, col2, col3 = st.columns(3)
-
+ 
         col1.metric("Total Gambar", total)
         col2.metric("Retak", retak)
         col3.metric("Tidak Retak", normal)
-
+ 
         st.bar_chart(df["Prediksi"].value_counts())
-
-        st.subheader("🔎 Filter Confidence")
-
+ 
+        st.markdown('<div class="section-title">🔎 Filter Confidence</div>', unsafe_allow_html=True)
+ 
         min_conf = st.slider("Minimum Confidence (%)", 0, 100, 50)
-
+ 
         filtered = df[df["Confidence (%)"] >= min_conf]
-
+ 
         st.dataframe(filtered, use_container_width=True)
-
+ 
 # =====================================
 # ABOUT
 # =====================================
 if menu == "ℹ️ About":
-
-    st.title("ℹ️ About Project")
-
+ 
     st.markdown("""
-    **🔬 Sistem Analisis Retak Beton Berbasis AI**
-
-    Aplikasi berbasis Convolutional Neural Network (CNN) untuk mendeteksi dan mengklasifikasikan keretakan pada permukaan beton secara otomatis melalui analisis citra digital.
-
-    ✔ Persistent image upload
-    ✔ Session-based history (no duplicate entries)
-    ✔ Streamlit deployment ready
-    ✔ Reset feature added
-    ✔ Auto-detect label order
-    ✔ Manual label swap toggle
-    """)
-
-    st.markdown("---")
-
-    st.markdown("### 👤 Identitas Mahasiswa")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("**Nama**")
-        st.markdown("**NIM**")
-        st.markdown("**Program Studi**")
-    with col2:
-        st.markdown(": Muhammad Reval Denta")
-        st.markdown(": 032400048")
-        st.markdown(": Elektro Mekanika")
-
-    st.markdown("---")
-    st.success("Ready 🚀")
+    <div class="hero-banner">
+        <div class="hero-badge">ABOUT PROJECT</div>
+        <div class="hero-title">&#8505;&#65039; Tentang <span>Aplikasi</span></div>
+        <div class="hero-sub">Sistem Analisis Retak Beton Berbasis AI &mdash; CNN · Computer Vision · Streamlit</div>
+    </div>
+    """, unsafe_allow_html=True)
+ 
+    col_a1, col_a2 = st.columns([1.2, 1])
+ 
+    with col_a1:
+        st.markdown('<div class="section-title">Deskripsi Proyek</div>', unsafe_allow_html=True)
+        st.markdown("""
+        <div class="info-card">
+            <div class="label">Tentang</div>
+            <div class="value" style="font-size:0.9rem; font-weight:400; line-height:1.6; margin-top:6px;">
+                Aplikasi berbasis <b>Convolutional Neural Network (CNN)</b> untuk mendeteksi dan
+                mengklasifikasikan keretakan pada permukaan beton secara otomatis melalui analisis
+                citra digital. Dibangun menggunakan Streamlit dan TensorFlow.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+ 
+        st.markdown('<div class="section-title">Fitur Teknis</div>', unsafe_allow_html=True)
+        st.markdown("""
+        <div class="info-card">
+            <ul class="feature-list">
+                <li><span class="feature-dot"></span> Persistent image upload antar menu</li>
+                <li><span class="feature-dot"></span> Session-based history (no duplicate entries)</li>
+                <li><span class="feature-dot"></span> Streamlit Cloud deployment ready</li>
+                <li><span class="feature-dot"></span> Auto-detect label order (sigmoid &amp; softmax)</li>
+                <li><span class="feature-dot"></span> Manual label swap toggle</li>
+                <li><span class="feature-dot"></span> Export PDF &amp; CSV laporan otomatis</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+ 
+    with col_a2:
+        st.markdown('<div class="section-title">Identitas Mahasiswa</div>', unsafe_allow_html=True)
+        st.markdown("""
+        <div class="info-card">
+            <div class="label">Nama</div>
+            <div class="value">Muhammad Reval Denta</div>
+        </div>
+        <div class="info-card">
+            <div class="label">NIM</div>
+            <div class="value">032400048</div>
+        </div>
+        <div class="info-card">
+            <div class="label">Program Studi</div>
+            <div class="value">Elektro Mekanika</div>
+        </div>
+        """, unsafe_allow_html=True)
+ 
+        st.markdown('<div class="section-title">Teknologi</div>', unsafe_allow_html=True)
+        st.markdown("""
+        <div class="info-card">
+            <ul class="feature-list">
+                <li><span class="feature-dot"></span> Python &amp; Streamlit</li>
+                <li><span class="feature-dot"></span> TensorFlow / Keras (CNN)</li>
+                <li><span class="feature-dot"></span> NumPy &amp; Pandas</li>
+                <li><span class="feature-dot"></span> ReportLab (PDF)</li>
+                <li><span class="feature-dot"></span> Pillow (Image Processing)</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+ 
+        st.markdown('''<div class="custom-alert alert-success">&#128640; &nbsp; <b>Ready for Deployment</b> &mdash; Upload ke GitHub dan deploy di Streamlit Cloud.</div>''', unsafe_allow_html=True)
