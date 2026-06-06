@@ -157,7 +157,7 @@ if menu == "🏠 Home":
 # =====================================
 if menu == "🔍 Predict":
 
-    st.title("🔍 AI Prediction System")
+    st.title("🔍 Prediksi Keretakan Beton")
 
     uploaded_images = st.file_uploader(
         "Upload gambar beton",
@@ -201,9 +201,11 @@ if menu == "🔍 Predict":
 
             image = Image.open(img_file).convert("RGB")
 
-            with st.spinner("🧠 AI processing..."):
-                img = image.resize((150, 150))
+            with st.spinner("🔬 Memproses gambar..."):
+                input_shape = model.input_shape[1:3]
+                img = image.resize(input_shape)
                 img_array = img_to_array(img)
+                img_array = img_array / 255.0
                 img_array = np.expand_dims(img_array, axis=0)
 
                 prediction = model.predict(img_array, verbose=0)
