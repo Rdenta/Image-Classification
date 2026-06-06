@@ -1,183 +1,82 @@
 import streamlit as st
 import numpy as np
-import os
-import pandas as pd
-from PIL import Image
+import tempfile
 
-# =====================================================
-# KONFIGURASI HALAMAN
-# =====================================================
+from PIL import Image
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import img_to_array
+
 st.set_page_config(
-    page_title="Image Classification Beton",
+    page_title="Deteksi Retak Beton",
     page_icon="🏗️",
     layout="centered"
 )
 
-st.title("🏗️ Klasifikasi Retakan Beton")
+st.title("🏗️ Deteksi Retak Beton dengan CNN")
+
 st.markdown("""
-**Nama :** Muhammad Reval Denta  
-**NIM   :** 032400048  
-**Prodi :** Elektro Mekanika  
-
-Aplikasi ini menggunakan model CNN untuk mendeteksi apakah sebuah gambar beton **Retak** atau **Tidak Retak**.
+### Langkah Penggunaan
+1. Upload file model `.h5`
+2. Upload gambar beton
+3. Sistem akan melakukan klasifikasi otomatis
 """)
-st.divider()
 
-# =====================================================
-# KONFIGURASI MODEL
-# =====================================================
-MODEL_PATH  = "model_crack_beton.h5"
-IMG_HEIGHT  = 150
-IMG_WIDTH   = 150
-CLASS_NAMES = ["Retak", "Tidak_Retak"]
-
-# =====================================================
-# SIDEBAR
-# =====================================================
-with st.sidebar:
-    st.header("ℹ️ Informasi Model")
-    st.markdown(f"""
-    - **Arsitektur:** CNN (Sequential)
-    - **Input:** {IMG_HEIGHT}×{IMG_WIDTH} px
-    - **Kelas:** {", ".join(CLASS_NAMES)}
-    - **Optimizer:** Adam
-    - **Epochs:** 10
-    """)
-    st.divider()
-    st.subheader("📊 Performa Training")
-    st.markdown("""
-    | Metrik | Nilai |
-    |---|---|
-    | Akurasi Train | ~99.00% |
-    | Akurasi Val   | ~98.75% |
-    | Loss Train    | ~0.034  |
-    | Loss Val      | ~0.078  |
-    """)
-    st.divider()
-    st.caption("Letakkan `model_crack_beton.h5` di folder yang sama dengan `streamlit_app.py`.")
-
-# =====================================================
-# LOAD MODEL (lazy, hanya load sekali)
-# =====================================================
-@st.cache_resource
-def load_model_cached(path):
-    import keras  # import di dalam fungsi agar tidak error saat module belum ada
-    model = keras.models.load_model(path, compile=False)
-    return model
-
-# =====================================================
-# UPLOAD MODEL jika belum ada
-# =====================================================
-if not os.path.exists(MODEL_PATH):
-    st.warning("⚠️ File model `model_crack_beton.h5` tidak ditemukan.")
-    uploaded_model = st.file_uploader("Upload file model (.h5)", type=["h5"])
-    if uploaded_model is not None:
-        with open(MODEL_PATH, "wb") as f:
-            f.write(uploaded_model.getbuffer())
-        st.success("✅ Model berhasil diupload! Refresh otomatis...")
-        st.rerun()
-    st.stop()
-
-try:
-    model = load_model_cached(MODEL_PATH)
-    st.success("✅ Model berhasil dimuat!")
-except Exception as e:
-    st.error(f"❌ Gagal memuat model: {e}")
-    st.stop()
-
-st.divider()
-
-# =====================================================
-# FUNGSI PREDIKSI
-# =====================================================
-def predict_image(img_pil):
-    img_resized = img_pil.resize((IMG_WIDTH, IMG_HEIGHT))
-    img_array   = np.array(img_resized, dtype=np.float32)
-    img_array   = np.expand_dims(img_array, axis=0)   # shape: [1, 150, 150, 3]
-    probs       = model.predict(img_array, verbose=0)[0]
-    idx         = int(np.argmax(probs))
-    return CLASS_NAMES[idx], float(probs[idx]) * 100, probs
-
-# =====================================================
-# UPLOAD GAMBAR
-# =====================================================
-st.subheader("📷 Upload Gambar Beton")
-uploaded_files = st.file_uploader(
-    "Pilih satu atau beberapa gambar beton (JPG / PNG)",
-    type=["jpg", "jpeg", "png"],
-    accept_multiple_files=True
+# Upload model
+uploaded_model = st.file_uploader(
+    "Upload Model CNN (.h5)",
+    type=["h5"]
 )
 
-if uploaded_files:
-    st.subheader("🔍 Hasil Prediksi")
-    results = []
+model = None
 
-    cols_per_row = 2
-    for i in range(0, len(uploaded_files), cols_per_row):
-        row_files = uploaded_files[i:i+cols_per_row]
-        cols = st.columns(len(row_files))
-        for col, f in zip(cols, row_files):
-            with col:
-                img_pil = Image.open(f).convert("RGB")
-                st.image(img_pil, caption=f.name, use_container_width=True)
+if uploaded_model is not None:
 
-                label, conf, probs = predict_image(img_pil)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as tmp:
+        tmp.write(uploaded_model.read())
+        model = load_model(tmp.name, compile=False)
 
-                if label == "Retak":
-                    st.error(f"**{label}** 🔴")
-                else:
-                    st.success(f"**{label}** 🟢")
+    st.success("✅ Model berhasil dimuat")
 
-                st.metric("Confidence", f"{conf:.2f}%")
+# Upload gambar
+uploaded_image = st.file_uploader(
+    "Upload Gambar Beton",
+    type=["jpg", "jpeg", "png"]
+)
 
-                with st.expander("Detail probabilitas"):
-                    for j, cls in enumerate(CLASS_NAMES):
-                        p = float(probs[j]) * 100
-                        st.write(f"{cls}: **{p:.2f}%**")
-                        st.progress(p / 100)
+if model is not None and uploaded_image is not None:
 
-                results.append({
-                    "Nama File"      : f.name,
-                    "Prediksi"       : label,
-                    "Confidence (%)" : f"{conf:.2f}"
-                })
+    image = Image.open(uploaded_image).convert("RGB")
 
-    # Ringkasan tabel
-    st.divider()
-    st.subheader("📋 Ringkasan Hasil")
-    df = pd.DataFrame(results)
-    st.dataframe(df, use_container_width=True)
+    st.image(
+        image,
+        caption="Gambar yang diupload",
+        use_container_width=True
+    )
 
-    total = len(df)
-    retak = (df["Prediksi"] == "Retak").sum()
-    tidak = total - retak
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Gambar", total)
-    c2.metric("Retak 🔴", retak)
-    c3.metric("Tidak Retak 🟢", tidak)
+    # preprocessing
+    img = image.resize((150, 150))
 
-else:
-    st.info("Silakan upload gambar beton untuk memulai prediksi.")
+    img_array = img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0)
 
-# =====================================================
-# PEMBAHASAN
-# =====================================================
-st.divider()
-with st.expander("📈 Pembahasan Hasil Training"):
-    st.markdown("""
-    | Metrik | Awal | Akhir |
-    |---|---|---|
-    | Training Accuracy   | ~71.63% | ~99.00% |
-    | Validation Accuracy | ~92.25% | ~98.75% |
-    | Training Loss       | 0.546   | 0.034   |
-    | Validation Loss     | 0.201   | 0.078   |
+    # jika saat training memakai normalisasi
+    # img_array = img_array / 255.0
 
-    Model berhasil mempelajari pola gambar beton dengan sangat baik tanpa tanda-tanda *overfitting* yang signifikan.
-    """)
+    prediction = model.predict(img_array, verbose=0)
 
-with st.expander("📝 Kesimpulan Akhir"):
-    st.markdown("""
-    1. **Akurasi Tinggi:** Model mencapai akurasi mendekati 99% dalam 10 epoch.
-    2. **Confidence Tinggi:** Prediksi pada gambar baru mencapai >90%, bahkan banyak mendekati 99%.
-    3. Model ini cocok untuk mendeteksi retakan beton secara otomatis.
-    """)
+    class_names = ["Retak", "Tidak_Retak"]
+
+    predicted_index = np.argmax(prediction[0])
+    predicted_class = class_names[predicted_index]
+
+    confidence = float(prediction[0][predicted_index]) * 100
+
+    st.subheader("Hasil Prediksi")
+
+    st.success(
+        f"Klasifikasi : {predicted_class}"
+    )
+
+    st.info(
+        f"Confidence : {confidence:.2f}%"
+    )
