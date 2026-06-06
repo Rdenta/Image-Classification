@@ -1,208 +1,108 @@
 import streamlit as st
+import tensorflow as tf
 import numpy as np
-import os
-import pandas as pd
 from PIL import Image
+import os
+import gdown
 
-st.set_page_config(
-    page_title="Image Classification Beton",
-    page_icon="🏗️",
-    layout="centered"
-)
+# --- PATCH BYPASS ERROR KERAS 3 ---
+# Memaksa Keras untuk mengabaikan parameter 'quantization_config' yang bikin error
+def apply_keras_patch():
+    layer_classes = [
+        tf.keras.layers.Dense, 
+        tf.keras.layers.Conv2D, 
+        tf.keras.layers.MaxPooling2D, 
+        tf.keras.layers.Flatten, 
+        tf.keras.layers.Dropout
+    ]
+    for layer_cls in layer_classes:
+        try:
+            orig_from_config = layer_cls.from_config
+            def make_patched_from_config(orig_func):
+                def patched(cls, config):
+                    config.pop('quantization_config', None)
+                    return orig_func(config)
+                return classmethod(patched)
+            layer_cls.from_config = make_patched_from_config(orig_from_config)
+        except Exception:
+            pass
 
-st.title("🏗️ Klasifikasi Retakan Beton")
-st.markdown("""
-**Nama :** Muhammad Reval Denta  
-**NIM   :** 032400048  
-**Prodi :** Elektro Mekanika  
+apply_keras_patch()
+# ----------------------------------
 
-Aplikasi ini menggunakan model CNN untuk mendeteksi apakah sebuah gambar beton **Retak** atau **Tidak Retak**.
-""")
-st.divider()
+# 1. Konfigurasi Halaman
+st.set_page_config(page_title="Prediksi Retak Beton", layout="centered", page_icon="🏗️")
 
-MODEL_PATH  = "model_crack_beton.h5"
-IMG_HEIGHT  = 150
-IMG_WIDTH   = 150
-CLASS_NAMES = ["Retak", "Tidak_Retak"]
+# 2. Definisikan Kelas (Label)
+class_names = ['Retak', 'Tidak_Retak']
 
-with st.sidebar:
-    st.header("ℹ️ Informasi Model")
-    st.markdown(f"""
-    - **Arsitektur:** CNN (Sequential)
-    - **Input:** {IMG_HEIGHT}×{IMG_WIDTH} px
-    - **Kelas:** {", ".join(CLASS_NAMES)}
-    - **Optimizer:** Adam
-    - **Epochs:** 10
-    """)
-    st.divider()
-    st.subheader("📊 Performa Training")
-    st.markdown("""
-    | Metrik | Nilai |
-    |---|---|
-    | Akurasi Train | ~99.00% |
-    | Akurasi Val   | ~98.75% |
-    | Loss Train    | ~0.034  |
-    | Loss Val      | ~0.078  |
-    """)
-
-# Layer augmentasi yang punya keyword tidak kompatibel
-AUGMENTATION_LAYERS = {'RandomFlip', 'RandomRotation', 'RandomZoom', 'RandomCrop',
-                       'RandomContrast', 'RandomBrightness', 'RandomTranslation'}
-
-def fix_config(obj, parent_class=None):
-    if isinstance(obj, dict):
-        # Ganti DTypePolicy dengan string float32
-        if obj.get('class_name') == 'DTypePolicy':
-            return 'float32'
-
-        current_class = obj.get('class_name', parent_class)
-        cleaned = {}
-
-        for k, v in obj.items():
-            # Selalu hapus key ini
-            if k in ('optional', 'registered_name', 'module'):
-                continue
-
-            # batch_shape -> input_shape
-            if k == 'batch_shape' and isinstance(v, list) and len(v) > 1:
-                cleaned['input_shape'] = v[1:]
-                continue
-
-            # Hapus data_format dari semua layer augmentasi
-            if k == 'data_format' and current_class in AUGMENTATION_LAYERS:
-                continue
-
-            cleaned[k] = fix_config(v, current_class)
-
-        return cleaned
-
-    elif isinstance(obj, list):
-        return [fix_config(i, parent_class) for i in obj]
-
-    return obj
-
+# 3. Fungsi untuk Memuat Model
 @st.cache_resource
-def load_model_cached(path):
-    import tensorflow as tf
-    import json
+def load_model():
+    model_path = 'model_crack_beton.h5'
+    
+    if not os.path.exists(model_path):
+        file_id = '1yaUHZ5p6aSxFuRYduiQKMwWpIJwf-if3' 
+        try:
+            gdown.download(id=file_id, output=model_path, quiet=False)
+        except Exception as e:
+            st.error(f"Gagal mengunduh model dari GDrive: {e}")
+            return None
+        
+    try:
+        model = tf.keras.models.load_model(model_path, compile=False)
+        return model
+    except Exception as e:
+        st.error(f"Gagal memuat model. Detail: {e}")
+        return None
 
-    with open(path, 'rb') as f:
-        content = f.read()
+# 4. Fungsi untuk Memprediksi Gambar
+def prediksi_gambar(image_pil, model):
+    img_height = 150
+    img_width = 150
 
-    start = content.find(b'{"class_name": "Sequential"')
-    if start == -1:
-        start = content.find(b'{"class_name":"Sequential"')
+    img_resized = image_pil.resize((img_width, img_height))
+    img_array = np.array(img_resized, dtype=np.float32)
+    img_array = np.expand_dims(img_array, axis=0)
 
-    chunk = content[start:start+100000].decode('utf-8', errors='ignore')
-    depth, end = 0, 0
-    for i, c in enumerate(chunk):
-        if c == '{': depth += 1
-        elif c == '}':
-            depth -= 1
-            if depth == 0:
-                end = i + 1
-                break
+    predictions = model.predict(img_array)
+    score = predictions[0]
 
-    config = json.loads(chunk[:end])
-    config = fix_config(config)
+    if len(class_names) == 2 and predictions.shape[-1] == 1:
+        predicted_class_idx = 1 if score[0] >= 0.5 else 0
+        konfidensi = score[0] if predicted_class_idx == 1 else 1 - score[0]
+        konfidensi = konfidensi * 100
+    else:
+        predicted_class_idx = np.argmax(score)
+        konfidensi = np.max(score) * 100
 
-    model = tf.keras.models.model_from_json(json.dumps(config))
-    model.load_weights(path)
-    return model
+    hasil_prediksi = class_names[predicted_class_idx]
+    return hasil_prediksi, konfidensi
 
-if not os.path.exists(MODEL_PATH):
-    st.warning("⚠️ File model `model_crack_beton.h5` tidak ditemukan.")
-    uploaded_model = st.file_uploader("Upload file model (.h5)", type=["h5"])
-    if uploaded_model is not None:
-        with open(MODEL_PATH, "wb") as f:
-            f.write(uploaded_model.getbuffer())
-        st.success("✅ Model berhasil diupload! Refresh otomatis...")
-        st.rerun()
+# 5. UI Streamlit
+st.title("🏗️ Deteksi Retak pada Beton")
+st.write("Unggah foto permukaan beton untuk mendeteksi apakah terdapat retakan atau tidak menggunakan model Artificial Intelligence.")
+
+with st.spinner("Sedang menyiapkan model AI... (Memakan waktu sesaat untuk unduh awal)"):
+    model_beton = load_model()
+
+if model_beton is None:
     st.stop()
 
-try:
-    model = load_model_cached(MODEL_PATH)
-    st.success("✅ Model berhasil dimuat!")
-except Exception as e:
-    st.error(f"❌ Gagal memuat model: {e}")
-    st.stop()
+# 6. Fitur Upload Gambar
+uploaded_file = st.file_uploader("Pilih gambar beton Anda...", type=["jpg", "jpeg", "png"])
 
-st.divider()
-
-def predict_image(img_pil):
-    img_resized = img_pil.resize((IMG_WIDTH, IMG_HEIGHT))
-    img_array   = np.array(img_resized, dtype=np.float32)
-    img_array   = np.expand_dims(img_array, axis=0)
-    probs       = model.predict(img_array, verbose=0)[0]
-    idx         = int(np.argmax(probs))
-    return CLASS_NAMES[idx], float(probs[idx]) * 100, probs
-
-st.subheader("📷 Upload Gambar Beton")
-uploaded_files = st.file_uploader(
-    "Pilih satu atau beberapa gambar beton (JPG / PNG)",
-    type=["jpg", "jpeg", "png"],
-    accept_multiple_files=True
-)
-
-if uploaded_files:
-    st.subheader("🔍 Hasil Prediksi")
-    results = []
-
-    cols_per_row = 2
-    for i in range(0, len(uploaded_files), cols_per_row):
-        row_files = uploaded_files[i:i+cols_per_row]
-        cols = st.columns(len(row_files))
-        for col, f in zip(cols, row_files):
-            with col:
-                img_pil = Image.open(f).convert("RGB")
-                st.image(img_pil, caption=f.name, use_container_width=True)
-                label, conf, probs = predict_image(img_pil)
-                if label == "Retak":
-                    st.error(f"**{label}** 🔴")
-                else:
-                    st.success(f"**{label}** 🟢")
-                st.metric("Confidence", f"{conf:.2f}%")
-                with st.expander("Detail probabilitas"):
-                    for j, cls in enumerate(CLASS_NAMES):
-                        p = float(probs[j]) * 100
-                        st.write(f"{cls}: **{p:.2f}%**")
-                        st.progress(p / 100)
-                results.append({
-                    "Nama File"      : f.name,
-                    "Prediksi"       : label,
-                    "Confidence (%)" : f"{conf:.2f}"
-                })
-
-    st.divider()
-    st.subheader("📋 Ringkasan Hasil")
-    df = pd.DataFrame(results)
-    st.dataframe(df, use_container_width=True)
-    total = len(df)
-    retak = (df["Prediksi"] == "Retak").sum()
-    tidak = total - retak
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Gambar", total)
-    c2.metric("Retak 🔴", retak)
-    c3.metric("Tidak Retak 🟢", tidak)
-else:
-    st.info("Silakan upload gambar beton untuk memulai prediksi.")
-
-st.divider()
-with st.expander("📈 Pembahasan Hasil Training"):
-    st.markdown("""
-    | Metrik | Awal | Akhir |
-    |---|---|---|
-    | Training Accuracy   | ~71.63% | ~99.00% |
-    | Validation Accuracy | ~92.25% | ~98.75% |
-    | Training Loss       | 0.546   | 0.034   |
-    | Validation Loss     | 0.201   | 0.078   |
-
-    Model berhasil mempelajari pola gambar beton dengan sangat baik tanpa tanda-tanda *overfitting* yang signifikan.
-    """)
-
-with st.expander("📝 Kesimpulan Akhir"):
-    st.markdown("""
-    1. **Akurasi Tinggi:** Model mencapai akurasi mendekati 99% dalam 10 epoch.
-    2. **Confidence Tinggi:** Prediksi pada gambar baru mencapai >90%, bahkan banyak mendekati 99%.
-    3. Model ini cocok untuk mendeteksi retakan beton secara otomatis.
-    """)
+if uploaded_file is not None:
+    image = Image.open(uploaded_file).convert('RGB')
+    st.image(image, caption="Gambar yang Anda unggah", use_column_width=True)
+    
+    if st.button("Deteksi Gambar"):
+        with st.spinner("Sedang menganalisis gambar..."):
+            hasil, konfidensi = prediksi_gambar(image, model_beton)
+        
+        if hasil == 'Retak':
+            st.error(f"⚠️ **Hasil Prediksi:** Beton Terdeteksi **{hasil}**")
+            st.write(f"**Tingkat Keyakinan Model:** {konfidensi:.2f}%")
+        else:
+            st.success(f"✅ **Hasil Prediksi:** Beton Terdeteksi **{hasil.replace('_', ' ')}**")
+            st.write(f"**Tingkat Keyakinan Model:** {konfidensi:.2f}%")
