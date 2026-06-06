@@ -45,12 +45,47 @@ with st.sidebar:
     | Loss Val      | ~0.078  |
     """)
 
+# Layer augmentasi yang punya keyword tidak kompatibel
+AUGMENTATION_LAYERS = {'RandomFlip', 'RandomRotation', 'RandomZoom', 'RandomCrop',
+                       'RandomContrast', 'RandomBrightness', 'RandomTranslation'}
+
+def fix_config(obj, parent_class=None):
+    if isinstance(obj, dict):
+        # Ganti DTypePolicy dengan string float32
+        if obj.get('class_name') == 'DTypePolicy':
+            return 'float32'
+
+        current_class = obj.get('class_name', parent_class)
+        cleaned = {}
+
+        for k, v in obj.items():
+            # Selalu hapus key ini
+            if k in ('optional', 'registered_name', 'module'):
+                continue
+
+            # batch_shape -> input_shape
+            if k == 'batch_shape' and isinstance(v, list) and len(v) > 1:
+                cleaned['input_shape'] = v[1:]
+                continue
+
+            # Hapus data_format dari semua layer augmentasi
+            if k == 'data_format' and current_class in AUGMENTATION_LAYERS:
+                continue
+
+            cleaned[k] = fix_config(v, current_class)
+
+        return cleaned
+
+    elif isinstance(obj, list):
+        return [fix_config(i, parent_class) for i in obj]
+
+    return obj
+
 @st.cache_resource
 def load_model_cached(path):
     import tensorflow as tf
     import json
 
-    # Baca raw config dari file h5
     with open(path, 'rb') as f:
         content = f.read()
 
@@ -69,45 +104,10 @@ def load_model_cached(path):
                 break
 
     config = json.loads(chunk[:end])
-
-    def fix_config(obj):
-        if isinstance(obj, dict):
-            # Ganti DTypePolicy dengan string float32
-            if obj.get('class_name') == 'DTypePolicy':
-                return 'float32'
-
-            cleaned = {}
-            for k, v in obj.items():
-                # Hapus key tidak kompatibel
-                if k in ('optional', 'registered_name', 'module'):
-                    continue
-
-                # Konversi batch_shape -> input_shape (buang dimensi batch/None pertama)
-                if k == 'batch_shape' and isinstance(v, list) and len(v) > 1:
-                    cleaned['input_shape'] = v[1:]
-                    continue
-
-                # Hapus data_format dari layer augmentasi
-                if k == 'data_format' and isinstance(obj.get('class_name', ''), str):
-                    class_name = obj.get('class_name', '')
-                    if class_name in ('RandomFlip', 'RandomRotation', 'RandomZoom'):
-                        continue
-
-                cleaned[k] = fix_config(v)
-            return cleaned
-
-        elif isinstance(obj, list):
-            return [fix_config(i) for i in obj]
-        return obj
-
     config = fix_config(config)
 
-    # Rebuild model dari config bersih
     model = tf.keras.models.model_from_json(json.dumps(config))
-
-    # Load weights
     model.load_weights(path)
-
     return model
 
 if not os.path.exists(MODEL_PATH):
