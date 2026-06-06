@@ -21,13 +21,13 @@ st.title("🏗️ Deteksi Retak Beton Menggunakan CNN")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.info("👤 Muhammad Reval Denta")
+    st.metric("Nama", "Muhammad Reval Denta")
 
 with col2:
-    st.info("🆔 032400048")
+    st.metric("NIM", "032400048")
 
 with col3:
-    st.info("⚡ Elektro Mekanika")
+    st.metric("Prodi", "Elektro Mekanika")
 
 st.markdown("""
 ### Cara Penggunaan
