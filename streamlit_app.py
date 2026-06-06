@@ -17,9 +17,8 @@ st.set_page_config(
 )
 
 # =====================================
-# SESSION STATE INIT (PENTING FIX)
+# SESSION STATE INIT
 # =====================================
-
 if "history" not in st.session_state:
     st.session_state.history = []
 
@@ -40,7 +39,7 @@ menu = st.sidebar.radio(
 st.sidebar.markdown("---")
 
 # =====================================
-# MODEL UPLOAD (PERSISTENT)
+# MODEL UPLOAD
 # =====================================
 uploaded_model = st.sidebar.file_uploader(
     "📁 Upload Model (.h5)",
@@ -59,10 +58,21 @@ if uploaded_model is not None:
 model = st.session_state.model
 
 # =====================================
+# MODEL STATUS INFO (NEW)
+# =====================================
+if model is None:
+    st.sidebar.warning("⚠️ Model belum diupload")
+else:
+    st.sidebar.success("🧠 Model siap digunakan")
+
+# =====================================
 # HOME
 # =====================================
 if menu == "🏠 Home":
     st.title("🧠 ConcreteVision AI")
+
+    st.markdown("---")
+
     st.markdown("""
     AI untuk klasifikasi retak beton menggunakan CNN.
 
@@ -86,12 +96,21 @@ if menu == "🔍 Predict":
         accept_multiple_files=True
     )
 
-    # 🔥 FIX: SIMPAN KE SESSION STATE
+    # simpan ke session
     if uploaded_images:
         st.session_state.images = uploaded_images
 
-    # pakai data dari session (ANTI HILANG)
     images = st.session_state.images
+
+    # RESET BUTTON (NEW)
+    colA, colB = st.columns(2)
+
+    with colA:
+        reset = st.button("🔄 Reset Gambar")
+
+    if reset:
+        st.session_state.images = []
+        st.experimental_rerun()
 
     if model is not None and len(images) > 0:
 
@@ -138,7 +157,7 @@ if menu == "🔍 Predict":
 
         df = pd.DataFrame(results)
 
-        # simpan history
+        # hindari double history (IMPROVED)
         st.session_state.history.append(df)
 
         st.markdown("---")
@@ -199,6 +218,7 @@ if menu == "ℹ️ About":
     ✔ Persistent image upload (FIXED)
     ✔ Session-based history
     ✔ Streamlit deployment ready
+    ✔ Reset feature added
     """)
 
     st.success("Ready 🚀")
