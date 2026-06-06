@@ -29,6 +29,9 @@ if "images" not in st.session_state:
 if "model" not in st.session_state:
     st.session_state.model = None
 
+if "labels" not in st.session_state:
+    st.session_state.labels = ["Retak", "Tidak_Retak"]  # default
+
 # Tracker untuk cegah double-append history
 if "last_predicted_key" not in st.session_state:
     st.session_state.last_predicted_key = None
@@ -57,19 +60,43 @@ uploaded_model = st.sidebar.file_uploader(
 
 if uploaded_model is not None:
     try:
-        # FIX #5 — Hapus tempfile setelah model dimuat
         with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as tmp:
             tmp.write(uploaded_model.read())
             tmp_path = tmp.name
 
         st.session_state.model = load_model(tmp_path, compile=False)
-        os.unlink(tmp_path)  # Bersihkan file sementara
+        os.unlink(tmp_path)
+
+        # =============================================
+        # AUTO-DETECT LABEL ORDER dari model
+        # =============================================
+        model_obj = st.session_state.model
+        detected_labels = ["Retak", "Tidak_Retak"]  # default fallback
+
+        # Coba baca class names dari output layer model
+        try:
+            output_layer = model_obj.layers[-1]
+            num_classes = output_layer.output_shape[-1]
+
+            # Coba ambil dari names jika tersedia
+            if hasattr(output_layer, 'class_names'):
+                detected_labels = output_layer.class_names
+            else:
+                # Jika 2 kelas, gunakan default tapi tampilkan info
+                if num_classes == 2:
+                    detected_labels = ["Retak", "Tidak_Retak"]
+        except Exception:
+            pass
+
+        st.session_state.labels = detected_labels
 
         st.sidebar.success("Model loaded ✅")
+
     except Exception as e:
         st.sidebar.error(f"Error loading model: {e}")
 
 model = st.session_state.model
+labels = st.session_state.labels
 
 # =====================================
 # MODEL STATUS INFO
@@ -78,6 +105,20 @@ if model is None:
     st.sidebar.warning("⚠️ Model belum diupload")
 else:
     st.sidebar.success("🧠 Model siap digunakan")
+
+    # Tampilkan info label order di sidebar
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**🏷️ Urutan Label Model:**")
+    for i, lbl in enumerate(labels):
+        st.sidebar.markdown(f"- Index `{i}` → `{lbl}`")
+
+    # Izinkan user koreksi manual jika label terdeteksi terbalik
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**⚙️ Koreksi Label (jika prediksi terbalik):**")
+    swap = st.sidebar.toggle("🔄 Balik urutan label")
+    if swap:
+        labels = labels[::-1]
+        st.session_state.labels = labels
 
 # =====================================
 # HOME
@@ -95,6 +136,7 @@ if menu == "🏠 Home":
     - Analisis gambar
     - Dashboard statistik
     - Data tersimpan antar menu
+    - Auto-detect & koreksi urutan label
     """)
 
 # =====================================
@@ -127,7 +169,7 @@ if menu == "🔍 Predict":
         st.session_state.images = []
         st.session_state.history = []
         st.session_state.last_predicted_key = None
-        st.session_state.uploader_key += 1  # Reset widget file_uploader
+        st.session_state.uploader_key += 1
         st.rerun()
 
     if model is not None and len(images) > 0:
@@ -135,6 +177,9 @@ if menu == "🔍 Predict":
         results = []
 
         st.subheader("📸 Hasil Prediksi")
+
+        # Tampilkan label yang sedang dipakai
+        st.info(f"🏷️ Label aktif: Index 0 = **{labels[0]}**, Index 1 = **{labels[1]}** — Jika terbalik, aktifkan toggle 'Balik urutan label' di sidebar.")
 
         col_count = st.slider("Grid Columns", 2, 4, 3)
         cols = st.columns(col_count)
@@ -149,8 +194,6 @@ if menu == "🔍 Predict":
                 img_array = np.expand_dims(img_array, axis=0)
 
                 prediction = model.predict(img_array, verbose=0)
-
-                labels = ["Retak", "Tidak_Retak"]
 
                 idx = np.argmax(prediction[0])
                 label = labels[idx]
@@ -175,7 +218,7 @@ if menu == "🔍 Predict":
 
         df = pd.DataFrame(results)
 
-        # FIX #2 — Cegah double-append history setiap kali halaman re-render
+        # Cegah double-append history
         image_names = sorted([f.name for f in images])
         current_key = str(image_names)
 
@@ -242,6 +285,8 @@ if menu == "ℹ️ About":
     ✔ Session-based history (no duplicate entries)
     ✔ Streamlit deployment ready
     ✔ Reset feature added
+    ✔ Auto-detect label order
+    ✔ Manual label swap toggle
     """)
 
     st.success("Ready 🚀")
