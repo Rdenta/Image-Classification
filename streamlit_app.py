@@ -257,6 +257,31 @@ if menu == "🔍 Predict":
 
         st.markdown("---")
 
+        # =====================================
+        # RINGKASAN PREDIKSI OTOMATIS
+        # =====================================
+        total_img   = len(df)
+        total_retak = len(df[df["Prediksi"] == "Retak"])
+        total_aman  = len(df[df["Prediksi"] == "Tidak_Retak"])
+        persen_retak = (total_retak / total_img * 100) if total_img > 0 else 0
+        persen_aman  = (total_aman  / total_img * 100) if total_img > 0 else 0
+
+        st.subheader("📋 Ringkasan Hasil Prediksi")
+
+        col_r1, col_r2, col_r3 = st.columns(3)
+        col_r1.metric("🖼️ Total Gambar", total_img)
+        col_r2.metric("⚠️ Retak", f"{total_retak} ({persen_retak:.1f}%)")
+        col_r3.metric("✅ Tidak Retak", f"{total_aman} ({persen_aman:.1f}%)")
+
+        if total_retak == 0:
+            st.success(f"✅ Dari **{total_img}** gambar yang dianalisis, **tidak ditemukan keretakan** pada seluruh sampel beton.")
+        elif total_aman == 0:
+            st.error(f"⚠️ Dari **{total_img}** gambar yang dianalisis, **seluruh sampel terdeteksi retak** dan perlu penanganan lebih lanjut.")
+        else:
+            st.warning(f"🔎 Dari **{total_img}** gambar yang dianalisis, ditemukan **{total_retak} retak ({persen_retak:.1f}%)** dan **{total_aman} tidak retak ({persen_aman:.1f}%)**. Segera periksa sampel yang terdeteksi retak.")
+
+        st.markdown("---")
+
         st.download_button(
             "📥 Download CSV",
             df.to_csv(index=False).encode(),
