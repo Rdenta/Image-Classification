@@ -61,13 +61,34 @@ with st.sidebar:
 # =====================================================
 @st.cache_resource
 def load_model_cached(path):
-    # Gunakan tensorflow.keras agar kompatibel di semua environment
+    import tensorflow as tf
+    import h5py
+
+    # Baca config model dari h5 lalu bersihkan keyword yang tidak kompatibel
+    def fix_config(config):
+        if isinstance(config, dict):
+            config.pop('batch_shape', None)
+            config.pop('optional', None)
+            for key in config:
+                config[key] = fix_config(config[key])
+        elif isinstance(config, list):
+            config = [fix_config(item) for item in config]
+        return config
+
     try:
-        from tensorflow import keras
-        model = keras.models.load_model(path, compile=False)
-    except Exception:
-        import tensorflow as tf
+        # Coba load biasa dulu
         model = tf.keras.models.load_model(path, compile=False)
+    except Exception:
+        try:
+            # Jika gagal, baca manual config lalu rebuild
+            import json
+            with h5py.File(path, 'r') as f:
+                model_config = json.loads(f.attrs['model_config'])
+                model_config = fix_config(model_config)
+                model = tf.keras.models.model_from_json(json.dumps(model_config))
+                model.load_weights(path)
+        except Exception as e2:
+            raise RuntimeError(f"Gagal load model: {e2}")
     return model
 
 # =====================================================
@@ -98,7 +119,7 @@ st.divider()
 def predict_image(img_pil):
     img_resized = img_pil.resize((IMG_WIDTH, IMG_HEIGHT))
     img_array   = np.array(img_resized, dtype=np.float32)
-    img_array   = np.expand_dims(img_array, axis=0)   # shape: [1, 150, 150, 3]
+    img_array   = np.expand_dims(img_array, axis=0)
     probs       = model.predict(img_array, verbose=0)[0]
     idx         = int(np.argmax(probs))
     return CLASS_NAMES[idx], float(probs[idx]) * 100, probs
@@ -147,7 +168,6 @@ if uploaded_files:
                     "Confidence (%)" : f"{conf:.2f}"
                 })
 
-    # Ringkasan tabel
     st.divider()
     st.subheader("📋 Ringkasan Hasil")
     df = pd.DataFrame(results)
