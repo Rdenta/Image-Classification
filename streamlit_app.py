@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import tempfile
 from datetime import datetime
+import plotly.graph_objects as go
+import plotly.express as px
 
 from PIL import Image
 from tensorflow.keras.models import load_model
@@ -20,7 +22,53 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 # =====================================
 # FUNGSI GENERATE PDF
 # =====================================
+def _make_pie_chart_img(total_retak, total_aman):
+    """Buat pie chart sebagai bytes PNG untuk disisipkan ke PDF."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(figsize=(4, 3.2), facecolor="white")
+    labels  = ["Retak", "Tidak Retak"]
+    sizes   = [total_retak, total_aman]
+    clrs    = ["#C0392B", "#27AE60"]
+    wedge_props = {"linewidth": 1.5, "edgecolor": "white"}
+    ax.pie(sizes, labels=labels, colors=clrs, autopct="%1.1f%%",
+           startangle=90, wedgeprops=wedge_props,
+           textprops={"fontsize": 10})
+    ax.set_title("Distribusi Hasil Prediksi", fontsize=11, fontweight="bold", pad=10)
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", dpi=120, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+def _make_bar_chart_img(df):
+    """Buat bar chart confidence per gambar sebagai bytes PNG untuk PDF."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    names  = [n[:18]+"..." if len(n) > 18 else n for n in df["File"].tolist()]
+    confs  = df["Confidence (%)"].tolist()
+    clrs   = ["#C0392B" if p == "Retak" else "#27AE60" for p in df["Prediksi"].tolist()]
+    fig, ax = plt.subplots(figsize=(7, max(2.5, len(names)*0.45)), facecolor="white")
+    bars = ax.barh(names, confs, color=clrs, edgecolor="white", linewidth=0.8)
+    ax.set_xlim(0, 110)
+    ax.set_xlabel("Confidence (%)", fontsize=9)
+    ax.set_title("Confidence Per Gambar", fontsize=11, fontweight="bold")
+    ax.axvline(50, color="#888", linestyle="--", linewidth=0.8, label="Threshold 50%")
+    for bar, v in zip(bars, confs):
+        ax.text(v + 1, bar.get_y() + bar.get_height()/2,
+                f"{v:.1f}%", va="center", fontsize=8)
+    ax.legend(fontsize=8)
+    plt.tight_layout()
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", dpi=120, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
 def generate_pdf(df, total_img, total_retak, total_aman, persen_retak, persen_aman):
+    from reportlab.platypus import Image as RLImage
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
                             rightMargin=2*cm, leftMargin=2*cm,
@@ -90,6 +138,28 @@ def generate_pdf(df, total_img, total_retak, total_aman, persen_retak, persen_am
     story.append(tbl_ringkasan)
     story.append(Spacer(1, 0.3*cm))
 
+    # GRAFIK — Pie Chart + Bar Chart
+    story.append(Paragraph("Visualisasi Hasil Prediksi", style_heading))
+    try:
+        pie_buf = _make_pie_chart_img(total_retak, total_aman)
+        pie_img = RLImage(pie_buf, width=7*cm, height=5.6*cm)
+
+        bar_buf = _make_bar_chart_img(df)
+        bar_h   = max(4*cm, min(len(df)*1.1*cm, 10*cm))
+        bar_img = RLImage(bar_buf, width=9*cm, height=bar_h)
+
+        chart_tbl = Table([[pie_img, bar_img]], colWidths=[8*cm, 9*cm])
+        chart_tbl.setStyle(TableStyle([
+            ("VALIGN",  (0,0), (-1,-1), "MIDDLE"),
+            ("ALIGN",   (0,0), (-1,-1), "CENTER"),
+            ("LEFTPADDING",  (0,0), (-1,-1), 4),
+            ("RIGHTPADDING", (0,0), (-1,-1), 4),
+        ]))
+        story.append(chart_tbl)
+    except Exception:
+        story.append(Paragraph("(Grafik tidak tersedia)", style_normal))
+    story.append(Spacer(1, 0.4*cm))
+
     # TABEL DETAIL HASIL
     story.append(Paragraph("Detail Hasil Prediksi", style_heading))
     header = [["No", "Nama File", "Resolusi", "Ukuran (KB)", "Prediksi", "Confidence (%)", "Waktu Prediksi"]]
@@ -118,7 +188,6 @@ def generate_pdf(df, total_img, total_retak, total_aman, persen_retak, persen_am
         ("RIGHTPADDING",(0,0), (-1,-1), 4),
         ("TOPPADDING",  (0,0), (-1,-1), 4),
         ("BOTTOMPADDING",(0,0),(-1,-1), 4),
-        # Warna merah untuk baris Retak
         *[("TEXTCOLOR", (4, i+1), (4, i+1), colors.HexColor("#C0392B"))
           for i, row in df.iterrows() if row["Prediksi"] == "Retak"],
         *[("TEXTCOLOR", (4, i+1), (4, i+1), colors.HexColor("#27AE60"))
@@ -423,7 +492,12 @@ if menu == "🔍 Predict":
         </div>
         """, unsafe_allow_html=True)
 
-        col_count = st.slider("Grid Columns", 2, 4, 3)
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            col_count = st.slider("Grid Columns", 2, 4, 3)
+        with col_s2:
+            threshold = st.slider("⚙️ Threshold Confidence (%)", 30, 90, 50,
+                help="Gambar dengan confidence DI BAWAH threshold akan ditandai 'Tidak Yakin'. Default: 50%")
         cols = st.columns(col_count)
 
         for i, img_file in enumerate(images):
@@ -443,12 +517,10 @@ if menu == "🔍 Predict":
                 output = prediction[0]
 
                 # Handle sigmoid (1 output) vs softmax (2 output)
+                thresh_val = threshold / 100.0
                 if len(output) == 1:
-                    # Sigmoid: nilai mendekati 1 = Tidak_Retak, mendekati 0 = Retak
-                    # Threshold 0.5: lebih sensitif mendeteksi retak (lebih aman)
                     sigmoid_val = float(output[0])
-                    threshold = 0.5
-                    if sigmoid_val >= threshold:
+                    if sigmoid_val >= thresh_val:
                         label = labels[1]   # Tidak_Retak
                         conf = sigmoid_val * 100
                     else:
@@ -577,19 +649,99 @@ if menu == "📊 Analytics":
         normal = len(df[df["Prediksi"] == "Tidak_Retak"])
 
         col1, col2, col3 = st.columns(3)
-
         col1.metric("Total Gambar", total)
         col2.metric("Retak", retak)
         col3.metric("Tidak Retak", normal)
 
-        st.bar_chart(df["Prediksi"].value_counts())
+        st.markdown('<div class="section-title">📊 Visualisasi Distribusi</div>', unsafe_allow_html=True)
 
-        st.markdown('<div class="section-title">🔎 Filter Confidence</div>', unsafe_allow_html=True)
+        chart_col1, chart_col2 = st.columns(2)
 
-        min_conf = st.slider("Minimum Confidence (%)", 0, 100, 50)
+        with chart_col1:
+            # Pie Chart Interaktif
+            pie_fig = go.Figure(data=[go.Pie(
+                labels=["Retak", "Tidak Retak"],
+                values=[retak, normal],
+                hole=0.45,
+                marker=dict(colors=["#FF6B6B", "#00C9A7"],
+                            line=dict(color="#161B22", width=2)),
+                textinfo="label+percent",
+                textfont=dict(size=13),
+                hovertemplate="<b>%{label}</b><br>Jumlah: %{value}<br>Persentase: %{percent}<extra></extra>"
+            )])
+            pie_fig.update_layout(
+                title=dict(text="Distribusi Prediksi", font=dict(size=14), x=0.5),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#E6EDF3"),
+                legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+                margin=dict(t=50, b=20, l=10, r=10),
+                height=320
+            )
+            st.plotly_chart(pie_fig, use_container_width=True)
+
+        with chart_col2:
+            # Bar Chart Interaktif
+            vc = df["Prediksi"].value_counts().reset_index()
+            vc.columns = ["Prediksi", "Jumlah"]
+            bar_colors = ["#FF6B6B" if p == "Retak" else "#00C9A7" for p in vc["Prediksi"]]
+            bar_fig = go.Figure(data=[go.Bar(
+                x=vc["Prediksi"],
+                y=vc["Jumlah"],
+                marker_color=bar_colors,
+                marker_line=dict(color="#161B22", width=1.5),
+                text=vc["Jumlah"],
+                textposition="outside",
+                hovertemplate="<b>%{x}</b><br>Jumlah: %{y}<extra></extra>"
+            )])
+            bar_fig.update_layout(
+                title=dict(text="Jumlah Per Kelas", font=dict(size=14), x=0.5),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#E6EDF3"),
+                xaxis=dict(showgrid=False, color="#8B949E"),
+                yaxis=dict(gridcolor="#30363D", color="#8B949E"),
+                margin=dict(t=50, b=20, l=10, r=10),
+                height=320
+            )
+            st.plotly_chart(bar_fig, use_container_width=True)
+
+        # Histogram Confidence
+        st.markdown('<div class="section-title">📈 Distribusi Confidence</div>', unsafe_allow_html=True)
+
+        hist_fig = px.histogram(
+            df, x="Confidence (%)", color="Prediksi",
+            nbins=20,
+            color_discrete_map={"Retak": "#FF6B6B", "Tidak_Retak": "#00C9A7"},
+            barmode="overlay",
+            opacity=0.8,
+            labels={"Confidence (%)": "Confidence (%)", "count": "Jumlah Gambar"},
+        )
+        hist_fig.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#E6EDF3"),
+            xaxis=dict(gridcolor="#30363D", color="#8B949E"),
+            yaxis=dict(gridcolor="#30363D", color="#8B949E"),
+            legend=dict(title="Prediksi", font=dict(size=11)),
+            margin=dict(t=20, b=20, l=10, r=10),
+            height=280
+        )
+        st.plotly_chart(hist_fig, use_container_width=True)
+
+        st.markdown('<div class="section-title">🔎 Filter & Tabel Data</div>', unsafe_allow_html=True)
+
+        fc1, fc2 = st.columns(2)
+        with fc1:
+            min_conf = st.slider("Minimum Confidence (%)", 0, 100, 50)
+        with fc2:
+            filter_label = st.selectbox("Filter Prediksi", ["Semua", "Retak", "Tidak_Retak"])
 
         filtered = df[df["Confidence (%)"] >= min_conf]
+        if filter_label != "Semua":
+            filtered = filtered[filtered["Prediksi"] == filter_label]
 
+        st.caption(f"Menampilkan {len(filtered)} dari {len(df)} data")
         st.dataframe(filtered, use_container_width=True)
 
 # =====================================
