@@ -1,0 +1,5 @@
+streamlit
+numpy<2.0.0
+pandas
+Pillow
+tensorflow-cpu==2.15.0
