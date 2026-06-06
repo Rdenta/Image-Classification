@@ -4,9 +4,6 @@ import os
 import pandas as pd
 from PIL import Image
 
-# =====================================================
-# KONFIGURASI HALAMAN
-# =====================================================
 st.set_page_config(
     page_title="Image Classification Beton",
     page_icon="🏗️",
@@ -23,17 +20,11 @@ Aplikasi ini menggunakan model CNN untuk mendeteksi apakah sebuah gambar beton *
 """)
 st.divider()
 
-# =====================================================
-# KONFIGURASI MODEL
-# =====================================================
 MODEL_PATH  = "model_crack_beton.h5"
 IMG_HEIGHT  = 150
 IMG_WIDTH   = 150
 CLASS_NAMES = ["Retak", "Tidak_Retak"]
 
-# =====================================================
-# SIDEBAR
-# =====================================================
 with st.sidebar:
     st.header("ℹ️ Informasi Model")
     st.markdown(f"""
@@ -53,47 +44,59 @@ with st.sidebar:
     | Loss Train    | ~0.034  |
     | Loss Val      | ~0.078  |
     """)
-    st.divider()
-    st.caption("Letakkan `model_crack_beton.h5` di folder yang sama dengan `streamlit_app.py`.")
 
-# =====================================================
-# LOAD MODEL (lazy, hanya load sekali)
-# =====================================================
 @st.cache_resource
 def load_model_cached(path):
     import tensorflow as tf
-    import h5py
+    import json, re
 
-    # Baca config model dari h5 lalu bersihkan keyword yang tidak kompatibel
-    def fix_config(config):
-        if isinstance(config, dict):
-            config.pop('batch_shape', None)
-            config.pop('optional', None)
-            for key in config:
-                config[key] = fix_config(config[key])
-        elif isinstance(config, list):
-            config = [fix_config(item) for item in config]
-        return config
+    # Baca raw config dari file h5 tanpa h5py
+    with open(path, 'rb') as f:
+        content = f.read()
 
-    try:
-        # Coba load biasa dulu
-        model = tf.keras.models.load_model(path, compile=False)
-    except Exception:
-        try:
-            # Jika gagal, baca manual config lalu rebuild
-            import json
-            with h5py.File(path, 'r') as f:
-                model_config = json.loads(f.attrs['model_config'])
-                model_config = fix_config(model_config)
-                model = tf.keras.models.model_from_json(json.dumps(model_config))
-                model.load_weights(path)
-        except Exception as e2:
-            raise RuntimeError(f"Gagal load model: {e2}")
+    start = content.find(b'{"class_name": "Sequential"')
+    if start == -1:
+        start = content.find(b'{"class_name":"Sequential"')
+
+    chunk = content[start:start+100000].decode('utf-8', errors='ignore')
+    depth, end = 0, 0
+    for i, c in enumerate(chunk):
+        if c == '{': depth += 1
+        elif c == '}':
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+
+    config = json.loads(chunk[:end])
+
+    # Hapus semua keyword yang tidak kompatibel secara rekursif
+    REMOVE_KEYS = {'batch_shape', 'optional', 'data_format', 'registered_name', 'module'}
+
+    def fix_config(obj):
+        if isinstance(obj, dict):
+            # Hapus DTypePolicy — ganti dengan string 'float32'
+            if obj.get('class_name') == 'DTypePolicy':
+                return 'float32'
+            cleaned = {}
+            for k, v in obj.items():
+                if k not in REMOVE_KEYS:
+                    cleaned[k] = fix_config(v)
+            return cleaned
+        elif isinstance(obj, list):
+            return [fix_config(i) for i in obj]
+        return obj
+
+    config = fix_config(config)
+
+    # Rebuild model dari config yang sudah dibersihkan
+    model = tf.keras.models.model_from_json(json.dumps(config))
+
+    # Load weights
+    model.load_weights(path)
+
     return model
 
-# =====================================================
-# UPLOAD MODEL jika belum ada
-# =====================================================
 if not os.path.exists(MODEL_PATH):
     st.warning("⚠️ File model `model_crack_beton.h5` tidak ditemukan.")
     uploaded_model = st.file_uploader("Upload file model (.h5)", type=["h5"])
@@ -113,9 +116,6 @@ except Exception as e:
 
 st.divider()
 
-# =====================================================
-# FUNGSI PREDIKSI
-# =====================================================
 def predict_image(img_pil):
     img_resized = img_pil.resize((IMG_WIDTH, IMG_HEIGHT))
     img_array   = np.array(img_resized, dtype=np.float32)
@@ -124,9 +124,6 @@ def predict_image(img_pil):
     idx         = int(np.argmax(probs))
     return CLASS_NAMES[idx], float(probs[idx]) * 100, probs
 
-# =====================================================
-# UPLOAD GAMBAR
-# =====================================================
 st.subheader("📷 Upload Gambar Beton")
 uploaded_files = st.file_uploader(
     "Pilih satu atau beberapa gambar beton (JPG / PNG)",
@@ -146,22 +143,17 @@ if uploaded_files:
             with col:
                 img_pil = Image.open(f).convert("RGB")
                 st.image(img_pil, caption=f.name, use_container_width=True)
-
                 label, conf, probs = predict_image(img_pil)
-
                 if label == "Retak":
                     st.error(f"**{label}** 🔴")
                 else:
                     st.success(f"**{label}** 🟢")
-
                 st.metric("Confidence", f"{conf:.2f}%")
-
                 with st.expander("Detail probabilitas"):
                     for j, cls in enumerate(CLASS_NAMES):
                         p = float(probs[j]) * 100
                         st.write(f"{cls}: **{p:.2f}%**")
                         st.progress(p / 100)
-
                 results.append({
                     "Nama File"      : f.name,
                     "Prediksi"       : label,
@@ -172,7 +164,6 @@ if uploaded_files:
     st.subheader("📋 Ringkasan Hasil")
     df = pd.DataFrame(results)
     st.dataframe(df, use_container_width=True)
-
     total = len(df)
     retak = (df["Prediksi"] == "Retak").sum()
     tidak = total - retak
@@ -180,13 +171,9 @@ if uploaded_files:
     c1.metric("Total Gambar", total)
     c2.metric("Retak 🔴", retak)
     c3.metric("Tidak Retak 🟢", tidak)
-
 else:
     st.info("Silakan upload gambar beton untuk memulai prediksi.")
 
-# =====================================================
-# PEMBAHASAN
-# =====================================================
 st.divider()
 with st.expander("📈 Pembahasan Hasil Training"):
     st.markdown("""
