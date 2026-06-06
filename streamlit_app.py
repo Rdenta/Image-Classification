@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 # =====================================
-# SESSION STATE INIT
+# SESSION STATE
 # =====================================
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -29,7 +29,7 @@ if "model" not in st.session_state:
     st.session_state.model = None
 
 # =====================================
-# SIDEBAR MENU
+# SIDEBAR
 # =====================================
 menu = st.sidebar.radio(
     "📌 Navigation",
@@ -58,7 +58,7 @@ if uploaded_model is not None:
 model = st.session_state.model
 
 # =====================================
-# MODEL STATUS INFO (NEW)
+# MODEL STATUS
 # =====================================
 if model is None:
     st.sidebar.warning("⚠️ Model belum diupload")
@@ -70,17 +70,22 @@ else:
 # =====================================
 if menu == "🏠 Home":
     st.title("🧠 ConcreteVision AI")
-
     st.markdown("---")
 
     st.markdown("""
-    AI untuk klasifikasi retak beton menggunakan CNN.
+    ## AI Deteksi Keretakan Beton (CNN)
+
+    Sistem ini mengklasifikasikan gambar beton menjadi:
+
+    - ✔ Tidak Retak
+    - ✔ Retak
 
     ### Fitur:
-    - Upload model AI
-    - Analisis gambar
-    - Dashboard statistik
-    - Data tersimpan antar menu (FIXED)
+    - Upload model AI (.h5)
+    - Upload banyak gambar
+    - Prediksi real-time
+    - Dashboard analytics
+    - Session tetap tersimpan
     """)
 
 # =====================================
@@ -96,43 +101,48 @@ if menu == "🔍 Predict":
         accept_multiple_files=True
     )
 
-    # simpan ke session
     if uploaded_images:
         st.session_state.images = uploaded_images
 
     images = st.session_state.images
 
-    # RESET BUTTON (NEW)
-    colA, colB = st.columns(2)
-
-    with colA:
-        reset = st.button("🔄 Reset Gambar")
-
-    if reset:
+    if st.button("🔄 Reset Gambar"):
         st.session_state.images = []
-        st.experimental_rerun()
+        st.rerun()
 
     if model is not None and len(images) > 0:
 
         results = []
 
-        st.subheader("📸 Hasil Prediksi")
+        st.subheader("📸 Hasil Prediksi AI")
 
         col_count = st.slider("Grid Columns", 2, 4, 3)
         cols = st.columns(col_count)
+
+        # ==========================
+        # LABEL FIX (ANTI KETUKAR)
+        # ==========================
+        labels = ["Tidak_Retak", "Retak"]
 
         for i, img_file in enumerate(images):
 
             image = Image.open(img_file).convert("RGB")
 
-            with st.spinner("🧠 AI processing..."):
+            with st.spinner("🧠 AI sedang menganalisis..."):
+
+                # resize sesuai training
                 img = image.resize((150, 150))
+
                 img_array = img_to_array(img)
+
+                # ==========================
+                # NORMALISASI (WAJIB FIX)
+                # ==========================
+                img_array = img_array / 255.0
+
                 img_array = np.expand_dims(img_array, axis=0)
 
                 prediction = model.predict(img_array, verbose=0)
-
-                labels = ["Retak", "Tidak_Retak"]
 
                 idx = np.argmax(prediction[0])
                 label = labels[idx]
@@ -141,9 +151,9 @@ if menu == "🔍 Predict":
             with cols[i % col_count]:
 
                 if label == "Retak":
-                    st.error("⚠️ Retak")
+                    st.error("⚠️ RETAK BETON")
                 else:
-                    st.success("✔ Tidak Retak")
+                    st.success("✔ TIDAK RETAK")
 
                 st.image(image, use_container_width=True)
                 st.progress(conf / 100)
@@ -157,7 +167,6 @@ if menu == "🔍 Predict":
 
         df = pd.DataFrame(results)
 
-        # hindari double history (IMPROVED)
         st.session_state.history.append(df)
 
         st.markdown("---")
@@ -187,13 +196,13 @@ if menu == "📊 Analytics":
 
         total = len(df)
         retak = len(df[df["Prediksi"] == "Retak"])
-        normal = len(df[df["Prediksi"] == "Tidak_Retak"])
+        tidak = len(df[df["Prediksi"] == "Tidak_Retak"])
 
         col1, col2, col3 = st.columns(3)
 
         col1.metric("Total Gambar", total)
         col2.metric("Retak", retak)
-        col3.metric("Tidak Retak", normal)
+        col3.metric("Tidak Retak", tidak)
 
         st.bar_chart(df["Prediksi"].value_counts())
 
@@ -215,10 +224,10 @@ if menu == "ℹ️ About":
     st.markdown("""
     ConcreteVision AI - Sistem deteksi retak beton berbasis CNN
 
-    ✔ Persistent image upload (FIXED)
-    ✔ Session-based history
-    ✔ Streamlit deployment ready
-    ✔ Reset feature added
+    ✔ Label sudah diperbaiki (anti ketukar)
+    ✔ Normalisasi input sesuai standar CNN
+    ✔ Session persistent
+    ✔ Siap deploy Streamlit Cloud
     """)
 
-    st.success("Ready 🚀")
+    st.success("🚀 Ready to use")
