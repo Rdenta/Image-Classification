@@ -48,9 +48,9 @@ with st.sidebar:
 @st.cache_resource
 def load_model_cached(path):
     import tensorflow as tf
-    import json, re
+    import json
 
-    # Baca raw config dari file h5 tanpa h5py
+    # Baca raw config dari file h5
     with open(path, 'rb') as f:
         content = f.read()
 
@@ -70,26 +70,39 @@ def load_model_cached(path):
 
     config = json.loads(chunk[:end])
 
-    # Hapus semua keyword yang tidak kompatibel secara rekursif
-    REMOVE_KEYS = {'batch_shape', 'optional', 'data_format', 'registered_name', 'module'}
-
     def fix_config(obj):
         if isinstance(obj, dict):
-            # Hapus DTypePolicy — ganti dengan string 'float32'
+            # Ganti DTypePolicy dengan string float32
             if obj.get('class_name') == 'DTypePolicy':
                 return 'float32'
+
             cleaned = {}
             for k, v in obj.items():
-                if k not in REMOVE_KEYS:
-                    cleaned[k] = fix_config(v)
+                # Hapus key tidak kompatibel
+                if k in ('optional', 'registered_name', 'module'):
+                    continue
+
+                # Konversi batch_shape -> input_shape (buang dimensi batch/None pertama)
+                if k == 'batch_shape' and isinstance(v, list) and len(v) > 1:
+                    cleaned['input_shape'] = v[1:]
+                    continue
+
+                # Hapus data_format dari layer augmentasi
+                if k == 'data_format' and isinstance(obj.get('class_name', ''), str):
+                    class_name = obj.get('class_name', '')
+                    if class_name in ('RandomFlip', 'RandomRotation', 'RandomZoom'):
+                        continue
+
+                cleaned[k] = fix_config(v)
             return cleaned
+
         elif isinstance(obj, list):
             return [fix_config(i) for i in obj]
         return obj
 
     config = fix_config(config)
 
-    # Rebuild model dari config yang sudah dibersihkan
+    # Rebuild model dari config bersih
     model = tf.keras.models.model_from_json(json.dumps(config))
 
     # Load weights
