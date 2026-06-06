@@ -12,8 +12,8 @@ from tensorflow.keras.preprocessing.image import img_to_array
 # PAGE CONFIG
 # =====================================
 st.set_page_config(
-    page_title="ConcreteVision AI — Sistem Deteksi Keretakan Beton",
-    page_icon="🧠",
+    page_title="Sistem Deteksi Keretakan Permukaan Beton Berbasis CNN",
+    page_icon="🧱",
     layout="wide"
 )
 
@@ -124,16 +124,16 @@ else:
 # HOME
 # =====================================
 if menu == "🏠 Home":
-    st.title("🧠 ConcreteVision AI — Sistem Deteksi Keretakan Beton")
+    st.title("🧱 Sistem Deteksi Keretakan Permukaan Beton Berbasis CNN")
 
     st.markdown("---")
 
     st.markdown("""
-    AI untuk klasifikasi retak beton menggunakan CNN.
+    Aplikasi klasifikasi keretakan permukaan beton menggunakan metode Convolutional Neural Network (CNN).
 
     ### Fitur:
-    - Upload model AI
-    - Analisis gambar
+    - Upload model CNN
+    - Analisis gambar beton
     - Dashboard statistik
     - Data tersimpan antar menu
     - Auto-detect & koreksi urutan label
@@ -308,9 +308,9 @@ if menu == "ℹ️ About":
     st.title("ℹ️ About Project")
 
     st.markdown("""
-    **ConcreteVision AI — Sistem Deteksi Keretakan Beton**
+    **🧱 Sistem Deteksi Keretakan Permukaan Beton Berbasis CNN**
 
-    Aplikasi berbasis Deep Learning (CNN) untuk mendeteksi keretakan pada permukaan beton secara otomatis melalui analisis citra digital.
+    Aplikasi berbasis Convolutional Neural Network (CNN) untuk mendeteksi dan mengklasifikasikan keretakan pada permukaan beton secara otomatis melalui analisis citra digital.
 
     ✔ Persistent image upload
     ✔ Session-based history (no duplicate entries)
