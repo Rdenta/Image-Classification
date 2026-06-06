@@ -105,12 +105,36 @@ if model is not None and uploaded_images:
 
         col1, col2 = st.columns([1, 2])
 
-        with col1:
-            st.image(
-                image,
-                caption=uploaded_image.name,
-                use_container_width=True
-            )
+# ==========================
+# ZOOM CONTROL PER IMAGE
+# ==========================
+
+if "zoom_level" not in st.session_state:
+    st.session_state.zoom_level = 300
+
+zoom_col1, zoom_col2, zoom_col3 = st.columns([1,1,2])
+
+with zoom_col1:
+    if st.button(f"➕ Zoom In {uploaded_image.name}"):
+        st.session_state.zoom_level += 50
+
+with zoom_col2:
+    if st.button(f"➖ Zoom Out {uploaded_image.name}"):
+        st.session_state.zoom_level = max(100, st.session_state.zoom_level - 50)
+
+with zoom_col3:
+    st.caption(f"🔍 Zoom Level: {st.session_state.zoom_level}px")
+
+# ==========================
+# DISPLAY IMAGE WITH ZOOM
+# ==========================
+
+with col1:
+    st.image(
+        image,
+        caption=f"{uploaded_image.name}",
+        width=st.session_state.zoom_level
+    )
 
         # =====================================
         # PREPROCESSING
