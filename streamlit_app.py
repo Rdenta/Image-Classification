@@ -195,9 +195,23 @@ if menu == "🔍 Predict":
 
                 prediction = model.predict(img_array, verbose=0)
 
-                idx = np.argmax(prediction[0])
-                label = labels[idx]
-                conf = float(prediction[0][idx]) * 100
+                output = prediction[0]
+
+                # Handle sigmoid (1 output) vs softmax (2 output)
+                if len(output) == 1:
+                    # Sigmoid: nilai mendekati 1 = Tidak_Retak, mendekati 0 = Retak
+                    sigmoid_val = float(output[0])
+                    if sigmoid_val >= 0.5:
+                        label = labels[1]   # Tidak_Retak
+                        conf = sigmoid_val * 100
+                    else:
+                        label = labels[0]   # Retak
+                        conf = (1 - sigmoid_val) * 100
+                else:
+                    # Softmax: ambil index tertinggi
+                    idx = np.argmax(output)
+                    label = labels[idx]
+                    conf = float(output[idx]) * 100
 
             with cols[i % col_count]:
 
