@@ -29,7 +29,7 @@ if "model" not in st.session_state:
     st.session_state.model = None
 
 # =====================================
-# SIDEBAR
+# SIDEBAR MENU
 # =====================================
 menu = st.sidebar.radio(
     "📌 Navigation",
@@ -73,19 +73,17 @@ if menu == "🏠 Home":
     st.markdown("---")
 
     st.markdown("""
-    ## AI Deteksi Keretakan Beton (CNN)
+    ## AI Deteksi Keretakan Beton
 
-    Sistem ini mengklasifikasikan gambar beton menjadi:
+    Model CNN ini sudah dilatih untuk klasifikasi:
 
-    - ✔ Tidak Retak
-    - ✔ Retak
+    - ✔ Retak Beton
+    - ✔ Tidak Retak Beton
 
-    ### Fitur:
-    - Upload model AI (.h5)
-    - Upload banyak gambar
-    - Prediksi real-time
-    - Dashboard analytics
-    - Session tetap tersimpan
+    ### Status Fix:
+    - ✔ Rescaling sudah ada di dalam model
+    - ✔ Tidak ada preprocessing ganda
+    - ✔ Streamlit sudah sinkron dengan training
     """)
 
 # =====================================
@@ -119,9 +117,9 @@ if menu == "🔍 Predict":
         col_count = st.slider("Grid Columns", 2, 4, 3)
         cols = st.columns(col_count)
 
-        # ==========================
-        # LABEL FIX (ANTI KETUKAR)
-        # ==========================
+        # =====================================
+        # LABEL FIX (BERDASARKAN MODEL UMUM)
+        # =====================================
         labels = ["Tidak_Retak", "Retak"]
 
         for i, img_file in enumerate(images):
@@ -133,13 +131,11 @@ if menu == "🔍 Predict":
                 # resize sesuai training
                 img = image.resize((150, 150))
 
+                # =====================================
+                # IMPORTANT FIX: TIDAK ADA /255.0
+                # karena model sudah rescaling internal
+                # =====================================
                 img_array = img_to_array(img)
-
-                # ==========================
-                # NORMALISASI (WAJIB FIX)
-                # ==========================
-                img_array = img_array / 255.0
-
                 img_array = np.expand_dims(img_array, axis=0)
 
                 prediction = model.predict(img_array, verbose=0)
@@ -222,12 +218,13 @@ if menu == "ℹ️ About":
     st.title("ℹ️ About Project")
 
     st.markdown("""
-    ConcreteVision AI - Sistem deteksi retak beton berbasis CNN
+    ConcreteVision AI - Sistem deteksi keretakan beton berbasis CNN
 
-    ✔ Label sudah diperbaiki (anti ketukar)
-    ✔ Normalisasi input sesuai standar CNN
-    ✔ Session persistent
-    ✔ Siap deploy Streamlit Cloud
+    ### FIXED VERSION:
+    ✔ Tidak ada double normalization  
+    ✔ Sinkron dengan model training (Rescaling internal)  
+    ✔ Prediksi lebih stabil  
+    ✔ Streamlit siap deploy  
     """)
 
     st.success("🚀 Ready to use")
