@@ -29,9 +29,13 @@ if "images" not in st.session_state:
 if "model" not in st.session_state:
     st.session_state.model = None
 
-# FIX #2 — Tambah key tracker untuk cegah double-append history
+# Tracker untuk cegah double-append history
 if "last_predicted_key" not in st.session_state:
     st.session_state.last_predicted_key = None
+
+# Key dinamis untuk reset file_uploader widget
+if "uploader_key" not in st.session_state:
+    st.session_state.uploader_key = 0
 
 # =====================================
 # SIDEBAR MENU
@@ -103,7 +107,8 @@ if menu == "🔍 Predict":
     uploaded_images = st.file_uploader(
         "Upload gambar beton",
         type=["jpg", "jpeg", "png"],
-        accept_multiple_files=True
+        accept_multiple_files=True,
+        key=f"uploader_{st.session_state.uploader_key}"
     )
 
     # Simpan ke session
@@ -120,8 +125,9 @@ if menu == "🔍 Predict":
 
     if reset:
         st.session_state.images = []
+        st.session_state.history = []
         st.session_state.last_predicted_key = None
-        # FIX #1 — Ganti experimental_rerun() dengan st.rerun()
+        st.session_state.uploader_key += 1  # Reset widget file_uploader
         st.rerun()
 
     if model is not None and len(images) > 0:
