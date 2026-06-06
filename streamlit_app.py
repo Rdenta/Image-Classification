@@ -1,16 +1,146 @@
 import os
+import io
 import streamlit as st
 import numpy as np
 import pandas as pd
 import tempfile
+from datetime import datetime
 
 from PIL import Image
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
 
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
 # =====================================
-# PAGE CONFIG
+# FUNGSI GENERATE PDF
 # =====================================
+def generate_pdf(df, total_img, total_retak, total_aman, persen_retak, persen_aman):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                            rightMargin=2*cm, leftMargin=2*cm,
+                            topMargin=2*cm, bottomMargin=2*cm)
+
+    styles = getSampleStyleSheet()
+    style_title   = ParagraphStyle("title",   parent=styles["Title"],   fontSize=14, alignment=TA_CENTER, spaceAfter=4)
+    style_sub     = ParagraphStyle("sub",     parent=styles["Normal"],  fontSize=10, alignment=TA_CENTER, textColor=colors.grey, spaceAfter=2)
+    style_heading = ParagraphStyle("heading", parent=styles["Heading2"],fontSize=11, spaceBefore=12, spaceAfter=4)
+    style_normal  = ParagraphStyle("normal",  parent=styles["Normal"],  fontSize=9)
+
+    story = []
+
+    # HEADER
+    story.append(Paragraph("LAPORAN HASIL ANALISIS RETAK BETON", style_title))
+    story.append(Paragraph("Sistem Analisis Retak Beton Berbasis AI", style_sub))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
+    story.append(Spacer(1, 0.3*cm))
+
+    # IDENTITAS MAHASISWA
+    story.append(Paragraph("Identitas Mahasiswa", style_heading))
+    identitas_data = [
+        ["Nama",          "Muhammad Reval Denta"],
+        ["NIM",           "032400048"],
+        ["Program Studi", "Elektro Mekanika"],
+        ["Tanggal",       datetime.now().strftime("%d %B %Y, %H:%M:%S")],
+    ]
+    tbl_identitas = Table(identitas_data, colWidths=[4*cm, 12*cm])
+    tbl_identitas.setStyle(TableStyle([
+        ("FONTNAME",    (0,0), (-1,-1), "Helvetica"),
+        ("FONTSIZE",    (0,0), (-1,-1), 9),
+        ("FONTNAME",    (0,0), (0,-1),  "Helvetica-Bold"),
+        ("TEXTCOLOR",   (0,0), (0,-1),  colors.HexColor("#444444")),
+        ("ROWBACKGROUNDS", (0,0), (-1,-1), [colors.HexColor("#F5F5F5"), colors.white]),
+        ("GRID",        (0,0), (-1,-1), 0.3, colors.HexColor("#DDDDDD")),
+        ("LEFTPADDING", (0,0), (-1,-1), 8),
+        ("RIGHTPADDING",(0,0), (-1,-1), 8),
+        ("TOPPADDING",  (0,0), (-1,-1), 5),
+        ("BOTTOMPADDING",(0,0),(-1,-1), 5),
+    ]))
+    story.append(tbl_identitas)
+    story.append(Spacer(1, 0.3*cm))
+
+    # RINGKASAN
+    story.append(Paragraph("Ringkasan Prediksi", style_heading))
+    ringkasan_data = [
+        ["Keterangan",       "Jumlah", "Persentase"],
+        ["Total Gambar",     str(total_img),   "100%"],
+        ["Terdeteksi Retak", str(total_retak), f"{persen_retak:.1f}%"],
+        ["Tidak Retak",      str(total_aman),  f"{persen_aman:.1f}%"],
+    ]
+    tbl_ringkasan = Table(ringkasan_data, colWidths=[8*cm, 4*cm, 4*cm])
+    tbl_ringkasan.setStyle(TableStyle([
+        ("BACKGROUND",  (0,0), (-1,0),  colors.HexColor("#2C3E50")),
+        ("TEXTCOLOR",   (0,0), (-1,0),  colors.white),
+        ("FONTNAME",    (0,0), (-1,0),  "Helvetica-Bold"),
+        ("FONTNAME",    (0,1), (-1,-1), "Helvetica"),
+        ("FONTSIZE",    (0,0), (-1,-1), 9),
+        ("ALIGN",       (1,0), (-1,-1), "CENTER"),
+        ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#F5F5F5")]),
+        ("GRID",        (0,0), (-1,-1), 0.3, colors.HexColor("#DDDDDD")),
+        ("LEFTPADDING", (0,0), (-1,-1), 8),
+        ("RIGHTPADDING",(0,0), (-1,-1), 8),
+        ("TOPPADDING",  (0,0), (-1,-1), 5),
+        ("BOTTOMPADDING",(0,0),(-1,-1), 5),
+    ]))
+    story.append(tbl_ringkasan)
+    story.append(Spacer(1, 0.3*cm))
+
+    # TABEL DETAIL HASIL
+    story.append(Paragraph("Detail Hasil Prediksi", style_heading))
+    header = [["No", "Nama File", "Resolusi", "Ukuran (KB)", "Prediksi", "Confidence (%)", "Waktu Prediksi"]]
+    rows   = [[
+                str(i+1),
+                row["File"],
+                row.get("Resolusi", "-"),
+                str(row.get("Ukuran (KB)", "-")),
+                row["Prediksi"],
+                f"{row['Confidence (%)']:.2f}%",
+                row.get("Waktu Prediksi", "-")
+              ]
+              for i, row in df.iterrows()]
+    tbl_detail = Table(header + rows, colWidths=[0.8*cm, 4.5*cm, 2*cm, 2*cm, 2.2*cm, 2.5*cm, 3*cm])
+    tbl_detail.setStyle(TableStyle([
+        ("BACKGROUND",  (0,0), (-1,0),  colors.HexColor("#2C3E50")),
+        ("TEXTCOLOR",   (0,0), (-1,0),  colors.white),
+        ("FONTNAME",    (0,0), (-1,0),  "Helvetica-Bold"),
+        ("FONTNAME",    (0,1), (-1,-1), "Helvetica"),
+        ("FONTSIZE",    (0,0), (-1,-1), 7),
+        ("ALIGN",       (0,0), (0,-1),  "CENTER"),
+        ("ALIGN",       (2,0), (-1,-1), "CENTER"),
+        ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#F5F5F5")]),
+        ("GRID",        (0,0), (-1,-1), 0.3, colors.HexColor("#DDDDDD")),
+        ("LEFTPADDING", (0,0), (-1,-1), 4),
+        ("RIGHTPADDING",(0,0), (-1,-1), 4),
+        ("TOPPADDING",  (0,0), (-1,-1), 4),
+        ("BOTTOMPADDING",(0,0),(-1,-1), 4),
+        # Warna merah untuk baris Retak
+        *[("TEXTCOLOR", (4, i+1), (4, i+1), colors.HexColor("#C0392B"))
+          for i, row in df.iterrows() if row["Prediksi"] == "Retak"],
+        *[("TEXTCOLOR", (4, i+1), (4, i+1), colors.HexColor("#27AE60"))
+          for i, row in df.iterrows() if row["Prediksi"] == "Tidak_Retak"],
+    ]))
+    story.append(tbl_detail)
+    story.append(Spacer(1, 0.5*cm))
+
+    # FOOTER
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
+    story.append(Spacer(1, 0.2*cm))
+    story.append(Paragraph(
+        f"Laporan dibuat otomatis oleh Sistem Analisis Retak Beton Berbasis AI "
+        f"pada {datetime.now().strftime('%d %B %Y pukul %H:%M:%S')}.",
+        style_normal
+    ))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+
 st.set_page_config(
     page_title="Sistem Analisis Retak Beton Berbasis AI",
     page_icon="🔬",
@@ -200,6 +330,9 @@ if menu == "🔍 Predict":
         for i, img_file in enumerate(images):
 
             image = Image.open(img_file).convert("RGB")
+            lebar, tinggi = image.size
+            ukuran_file   = img_file.size / 1024  # dalam KB
+            waktu_prediksi = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
 
             with st.spinner("🔬 Memproses gambar..."):
                 img = image.resize((150, 150))
@@ -237,12 +370,18 @@ if menu == "🔍 Predict":
 
                 st.image(image, use_container_width=True)
                 st.progress(conf / 100)
+                st.caption(f"📁 {img_file.name}")
+                st.caption(f"📐 {lebar}x{tinggi} px  |  💾 {ukuran_file:.1f} KB")
+                st.caption(f"🕐 {waktu_prediksi}")
                 st.write(f"Confidence: {conf:.2f}%")
 
             results.append({
-                "File": img_file.name,
-                "Prediksi": label,
-                "Confidence (%)": round(conf, 2)
+                "File"           : img_file.name,
+                "Ukuran (KB)"    : round(ukuran_file, 1),
+                "Resolusi"       : f"{lebar}x{tinggi}",
+                "Prediksi"       : label,
+                "Confidence (%)" : round(conf, 2),
+                "Waktu Prediksi" : waktu_prediksi
             })
 
         df = pd.DataFrame(results)
@@ -282,12 +421,28 @@ if menu == "🔍 Predict":
 
         st.markdown("---")
 
-        st.download_button(
-            "📥 Download CSV",
-            df.to_csv(index=False).encode(),
-            "hasil_prediksi.csv",
-            "text/csv"
-        )
+        col_dl1, col_dl2 = st.columns(2)
+
+        with col_dl1:
+            st.download_button(
+                "📥 Download CSV",
+                df.to_csv(index=False).encode(),
+                "hasil_prediksi.csv",
+                "text/csv",
+                use_container_width=True
+            )
+
+        with col_dl2:
+            pdf_buffer = generate_pdf(
+                df, total_img, total_retak, total_aman, persen_retak, persen_aman
+            )
+            st.download_button(
+                "📄 Download Laporan PDF",
+                pdf_buffer,
+                f"laporan_retak_beton_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                "application/pdf",
+                use_container_width=True
+            )
 
     else:
         st.info("Upload model dan gambar terlebih dahulu")
