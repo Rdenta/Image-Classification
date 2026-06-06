@@ -200,9 +200,9 @@ if menu == "🔍 Predict":
                 # Handle sigmoid (1 output) vs softmax (2 output)
                 if len(output) == 1:
                     # Sigmoid: nilai mendekati 1 = Tidak_Retak, mendekati 0 = Retak
-                    # Threshold 0.6 agar lebih konservatif (kurangi false positive Retak)
+                    # Threshold 0.5: lebih sensitif mendeteksi retak (lebih aman)
                     sigmoid_val = float(output[0])
-                    threshold = 0.6
+                    threshold = 0.5
                     if sigmoid_val >= threshold:
                         label = labels[1]   # Tidak_Retak
                         conf = sigmoid_val * 100
