@@ -210,12 +210,13 @@ st.set_page_config(
 # =====================================
 # SESSION STATE
 # =====================================
-if "history"           not in st.session_state: st.session_state.history           = []
-if "images"            not in st.session_state: st.session_state.images            = []
-if "model"             not in st.session_state: st.session_state.model             = None
-if "labels"            not in st.session_state: st.session_state.labels            = ["Retak", "Tidak_Retak"]
+if "history"            not in st.session_state: st.session_state.history            = []
+if "images"             not in st.session_state: st.session_state.images             = []
+if "model"              not in st.session_state: st.session_state.model              = None
+if "labels"             not in st.session_state: st.session_state.labels             = ["Retak", "Tidak_Retak"]
 if "last_predicted_key" not in st.session_state: st.session_state.last_predicted_key = None
-if "uploader_key"      not in st.session_state: st.session_state.uploader_key      = 0
+if "uploader_key"       not in st.session_state: st.session_state.uploader_key       = 0
+if "loaded_model_name"  not in st.session_state: st.session_state.loaded_model_name  = None
 
 # =====================================
 # SIDEBAR
@@ -251,6 +252,11 @@ if uploaded_model is not None:
         except Exception:
             pass
 
+        # Toast hanya muncul sekali saat nama model berubah
+        if st.session_state.loaded_model_name != uploaded_model.name:
+            st.session_state.loaded_model_name = uploaded_model.name
+            st.toast(f"✅ Model **{uploaded_model.name}** berhasil dimuat!", icon="🧠")
+
         st.sidebar.success("Model loaded ✅")
     except Exception as e:
         st.sidebar.error(f"Error loading model: {e}")
@@ -263,6 +269,28 @@ if model is None:
     st.sidebar.warning("⚠️ Model belum diupload")
 else:
     st.sidebar.success("🧠 Model siap digunakan")
+    st.sidebar.markdown("---")
+
+    # Info Arsitektur Model
+    st.sidebar.markdown("**🏗️ Arsitektur Model:**")
+    try:
+        total_layers  = len(model.layers)
+        total_params  = model.count_params()
+        trainable     = sum([p.numpy().size for p in model.trainable_weights])
+        non_trainable = total_params - trainable
+        input_shape   = model.input_shape
+        output_shape  = model.output_shape
+        st.sidebar.markdown(
+            f"- Total Layer: `{total_layers}`\n"
+            f"- Total Parameter: `{total_params:,}`\n"
+            f"- Trainable: `{trainable:,}`\n"
+            f"- Non-Trainable: `{non_trainable:,}`\n"
+            f"- Input Shape: `{input_shape}`\n"
+            f"- Output Shape: `{output_shape}`"
+        )
+    except Exception:
+        st.sidebar.caption("Info arsitektur tidak tersedia.")
+
     st.sidebar.markdown("---")
     st.sidebar.markdown("**🏷️ Urutan Label Model:**")
     for i, lbl in enumerate(labels):
@@ -328,10 +356,11 @@ if menu == "🔍 Predict":
     colA, colB = st.columns(2)
     with colA:
         if st.button("🔄 Reset Gambar"):
-            st.session_state.images            = []
-            st.session_state.history           = []
+            st.session_state.images             = []
+            st.session_state.history            = []
             st.session_state.last_predicted_key = None
-            st.session_state.uploader_key      += 1
+            st.session_state.uploader_key       += 1
+            st.toast("🗑️ Gambar dan riwayat berhasil direset!", icon="✅")
             st.rerun()
 
     if model is not None and len(images) > 0:
