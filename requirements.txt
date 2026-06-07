@@ -1,9 +1,0 @@
-streamlit
-tensorflow-cpu==2.18.0
-numpy
-pandas
-pillow
-h5py
-reportlab
-plotly
-matplotlib
