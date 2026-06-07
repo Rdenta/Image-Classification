@@ -4,11 +4,9 @@ Aplikasi web berbasis **Convolutional Neural Network (CNN)** untuk mendeteksi da
 
 ---
 
-## 🚀 Demo Aplikasi
+## 🚀 Akses Aplikasi
 
-> Setelah deploy ke Streamlit Cloud, tambahkan link aplikasi Anda di sini.
-
-🔗 **Link Aplikasi:** `https://share.streamlit.io/username/nama-repo/main/streamlit_app.py`
+🔗 **Link Aplikasi:** [https://image-classification-4b2lbbcjjhhfrdwdskgytr.streamlit.app/](https://image-classification-4b2lbbcjjhhfrdwdskgytr.streamlit.app/)
 
 ---
 
