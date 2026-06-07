@@ -367,13 +367,12 @@ if menu == "🔍 Predict":
         results = []
 
         st.subheader("📸 Hasil Prediksi")
-        st.info(f"🏷️ Label aktif: Index 0 = **{labels[0]}**, Index 1 = **{labels[1]}** — Jika terbalik, aktifkan toggle di sidebar.")
 
         col_s1, col_s2 = st.columns(2)
         with col_s1:
             col_count = st.slider("Grid Columns", 2, 4, 3)
         with col_s2:
-            threshold = st.slider("⚙️ Threshold Confidence (%)", 30, 90, 50,
+            threshold = st.slider("Threshold Confidence (%)", 30, 90, 50,
                 help="Batas confidence untuk klasifikasi. Default: 50%")
         cols = st.columns(col_count)
 
